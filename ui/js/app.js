@@ -5,19 +5,22 @@ import * as A from "./actions.js";
 import { dayKey, fmt, parseCapture, phaseMs } from "./core.js";
 import { ICONS } from "./icons.js";
 import { F, S, commit, load, onChange, state } from "./store.js";
-import { $, $$, toast, ui } from "./ui.js";
+import { $, $$, flash, toast, ui } from "./ui.js";
 import * as Assistant from "./views/assistant.js";
 import * as Focus from "./views/focus.js";
 import * as Media from "./views/media.js";
 import * as Notes from "./views/notes.js";
+import * as Notifs from "./views/notifs.js";
 import * as Settings from "./views/settings.js";
 import * as Stats from "./views/stats.js";
 import * as Today from "./views/today.js";
+import * as Tools from "./views/tools.js";
 
 // Orden de las pestañas: IA va al final, junto a Ajustes.
-const VIEWS = { today: Today, focus: Focus, notes: Notes, stats: Stats, ai: Assistant, settings: Settings };
-const TABS = Object.keys(VIEWS);
-const SHAPE = { pill: [300, 40, 20], capture: [500, 52, 26], media: [460, 104, 30], panel: [440, 620, 24] };
+const VIEWS = { today: Today, focus: Focus, notes: Notes, stats: Stats, ai: Assistant, settings: Settings, notifs: Notifs };
+// "notifs" se abre desde la campana, no es una pestaña.
+const TABS = Object.keys(VIEWS).filter((t) => t !== "notifs");
+const SHAPE = { pill: [300, 40, 20], capture: [500, 52, 26], media: [460, 104, 30], notif: [460, 92, 28], tools: [340, 216, 34], panel: [440, 620, 24] };
 const area = (m) => SHAPE[m][0] * SHAPE[m][1];
 
 /* ============================================================
@@ -93,6 +96,16 @@ function renderPill() {
   prog.classList.toggle("break", v.kind === "break");
   $("#pillProgress").style.width = `${Math.round((v.progress || 0) * 100)}%`;
 
+  // Campana con los avisos sin leer (en la píldora y en el panel).
+  const unread = A.unreadNotifs().length;
+  const bell = $("#pillBell");
+  bell.hidden = !unread || !!v.flash || !!ui.habitPrompt;
+  // Con avisos y música a la vez, la carátula ya indica la música: quitamos el ecualizador.
+  if (!bell.hidden && isMedia) eq.hidden = true;
+  bell.innerHTML = `${ICONS.bell}<b>${unread > 9 ? "9+" : unread}</b>`;
+  $("#bellBtn").innerHTML = `${ICONS.bell}${unread ? `<b>${unread > 9 ? "9+" : unread}</b>` : ""}`;
+  $("#bellBtn").classList.toggle("active", state.ui.tab === "notifs");
+
   $("#headDot").className = "dot " + v.dot;
   $("#headLabel").textContent = v.label;
   $("#headTime").textContent = v.meta;
@@ -101,6 +114,8 @@ function renderPill() {
 function renderAll() {
   renderPill();
   if (ui.mode === "media") Media.renderIsland();
+  if (ui.mode === "notif") Notifs.renderIsland();
+  if (ui.mode === "tools") Tools.render();
   if (ui.mode !== "panel") return;
   VIEWS[state.ui.tab]?.render();
 }
@@ -187,23 +202,38 @@ function bindPill() {
   let down = null;
   pill.addEventListener("pointerdown", (e) => {
     clearTimeout(hoverTimer);
-    if (e.button !== 0 || e.target.closest("#pillPlay")) return;
-    down = { x: e.screenX, y: e.screenY, dragging: false };
+    if (e.button !== 0 || e.target.closest("#pillPlay, #pillBell")) return;
+    down = { x: e.screenX, y: e.screenY, dragging: false, long: false };
+    // Mantener pulsada la píldora abre las herramientas, como AssistiveTouch.
+    const current = down;
+    current.timer = setTimeout(() => {
+      if (down === current && !current.dragging) {
+        current.long = true;
+        openTools();
+      }
+    }, 550);
   });
   pill.addEventListener("pointermove", (e) => {
     if (!down || down.dragging || !(e.buttons & 1)) return;
     if (Math.hypot(e.screenX - down.x, e.screenY - down.y) > 4) {
       down.dragging = true;
+      clearTimeout(down.timer);
       invoke("start_drag");
     }
   });
   pill.addEventListener("pointerup", (e) => {
-    if (down && !down.dragging && !e.target.closest("#pillPlay")) openPanel();
+    if (down) clearTimeout(down.timer);
+    if (down && !down.dragging && !down.long && !e.target.closest("#pillPlay, #pillBell")) openPanel();
     down = null;
   });
   pill.addEventListener("contextmenu", (e) => {
     e.preventDefault();
-    setMode("capture");
+    if (S().tools.rightClick === "capture") setMode("capture");
+    else openTools();
+  });
+  $("#pillBell").addEventListener("click", (e) => {
+    e.stopPropagation();
+    openPanel("notifs");
   });
   $("#pillPlay").addEventListener("click", (e) => {
     e.stopPropagation();
@@ -249,10 +279,13 @@ function bindMedia() {
   });
   island.addEventListener("pointerleave", () => {
     hovering = false;
-    if (ui.mode !== "media" || !ui.mediaPeek) return;
+    const transient = (ui.mode === "media" && ui.mediaPeek) || ui.mode === "notif" || ui.mode === "tools";
+    if (!transient) return;
     clearTimeout(leaveTimer);
-    leaveTimer = setTimeout(() => ui.mode === "media" && !hovering && collapse(), 350);
+    leaveTimer = setTimeout(() => ["media", "notif", "tools"].includes(ui.mode) && !hovering && collapse(), ui.mode === "tools" ? 700 : 350);
   });
+  $("#notifView").addEventListener("click", () => openPanel("notifs"));
+  Tools.bind({ collapse, openPanel, capture: captureWith, hide: async () => (await collapse(), setTimeout(() => invoke("hide_pill"), 380)) });
   // Clic fuera de los controles: abre el panel en la pestaña Foco, donde está "Ahora suena".
   $("#mediaView").addEventListener("click", (e) => {
     if (e.target.closest("[data-media],[data-seek]")) return;
@@ -260,6 +293,46 @@ function bindMedia() {
   });
   Media.bind($("#mediaView"));
   Media.bind($("#nowPlaying"));
+}
+
+/* Herramientas rápidas */
+let toolsTimer = null;
+function openTools() {
+  if (ui.mode !== "pill" && ui.mode !== "media" && ui.mode !== "notif") return;
+  setMode("tools");
+  clearTimeout(toolsTimer);
+  toolsTimer = setTimeout(() => ui.mode === "tools" && !hovering && collapse(), 8000);
+}
+
+function captureWith(prefix) {
+  setMode("capture").then(() => {
+    const input = $("#captureInput");
+    input.value = prefix;
+    input.dispatchEvent(new Event("input"));
+    setTimeout(() => {
+      input.focus();
+      input.setSelectionRange(prefix.length, prefix.length);
+    }, 80);
+  });
+}
+
+/* Avisos que se asoman */
+let notifTimer = null;
+function onNotificationEvent(n) {
+  const decision = A.onNotification(n);
+  if (decision !== "show") return renderAll();
+  const item = state.notifs.items[state.notifs.items.length - 1];
+  if (ui.mode === "pill" || ui.mode === "notif") {
+    ui.notifPeek = item;
+    setMode("notif");
+    renderAll();
+    clearTimeout(notifTimer);
+    notifTimer = setTimeout(() => ui.mode === "notif" && !hovering && collapse(), 5500);
+  } else if (ui.mode === "panel") {
+    toast(`${item.source}: ${item.title}`);
+  } else {
+    flash(`🔔 ${item.source}: ${item.title}`, 5000, "info");
+  }
 }
 
 function onMediaEvent(m) {
@@ -293,6 +366,7 @@ function bindCapture() {
 function bindPanel() {
   $("#collapseBtn").innerHTML = ICONS.chevronUp;
   $("#collapseBtn").addEventListener("click", collapse);
+  $("#bellBtn").addEventListener("click", () => setTab(state.ui.tab === "notifs" ? "today" : "notifs"));
   $('#tabs [data-tab="settings"]').innerHTML = ICONS.gear;
   $('#tabs [data-tab="ai"]').insertAdjacentHTML("afterbegin", ICONS.sparkle);
   $("#todayForm .add-btn").innerHTML = ICONS.plus;
@@ -329,6 +403,8 @@ function handleAction(action) {
       return toast(F().running ? (F().phase === "focus" ? "Foco en marcha" : "Descanso en marcha") : "En pausa");
     case "toggle-panel":
       return ui.mode === "panel" ? collapse() : openPanel();
+    case "tools":
+      return ui.mode === "tools" ? collapse() : openTools();
     case "collapse":
       return collapse();
     case "ai-plan":
@@ -362,7 +438,7 @@ async function loadEnvironment() {
 }
 
 async function init() {
-  if (PREVIEW) document.body.classList.add("preview");
+  if (PREVIEW) document.body.classList.add(new URLSearchParams(location.search).get("shot") ? "shot" : "preview");
   await load();
   invoke("set_utc_offset", { minutes: -new Date().getTimezoneOffset() });
   A.restoreDnd();
@@ -393,6 +469,21 @@ async function init() {
   });
   await listen("active-app", (e) => A.onActiveApp(e.payload));
   await listen("media", (e) => onMediaEvent(e.payload));
+  await listen("notification", (e) => onNotificationEvent(e.payload));
+  await listen("notifications-error", (e) => toast(`Avisos: ${e.payload}`));
+  if (S().notifications.enabled) invoke("set_notifications", { enabled: true }).catch(() => {});
+  // Primera vez: FocusPill se inicia con el sistema (se cambia en Ajustes → Inicio).
+  if (!PREVIEW && !S().startup.asked) {
+    S().startup.asked = true;
+    try {
+      await invoke("set_autostart", { enabled: true });
+      ui.autostart = true;
+      flash("FocusPill se abrirá al iniciar sesión · cámbialo en Ajustes", 6000, "info");
+    } catch (_) {
+      /* sin permisos para el inicio automático: se puede activar a mano */
+    }
+    commit({ render: false });
+  }
   invoke("media_state").then((m) => m && A.onMedia(m)).catch(() => {});
   if (state.ui.mediaPinned) invoke("media_pin", { player: state.ui.mediaPinned });
 
@@ -418,6 +509,7 @@ async function init() {
     if (q.get("plan")) await A.planDay();
     if (q.get("close")) await A.closeDay();
     if (q.get("weekly")) await A.weeklyReview();
+    if (q.get("notif")) onNotificationEvent({ app: "Google Chrome", source: "Slack", domain: "app.slack.com", title: "Ana García", body: "¿Puedes revisar el informe de octubre antes de la reunión?", urgency: 1 });
   }
 
   // Reloj

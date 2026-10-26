@@ -8,9 +8,9 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Versión a publicar (p. ej. v0.3.0)"
+        description: "Versión a publicar (p. ej. v0.4.0)"
         required: true
-        default: "v0.3.0"
+        default: "v0.4.0"
       delete_other_drafts:
         description: "Borrar los demás borradores"
         type: boolean

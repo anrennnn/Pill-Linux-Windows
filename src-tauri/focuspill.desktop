@@ -9,7 +9,7 @@ Terminal=false
 Categories=Utility;Office;
 Keywords=pomodoro;foco;tareas;productividad;focus;tasks;notes;
 StartupWMClass=focuspill
-Actions=capture;focus;open;
+Actions=capture;focus;tools;open;
 
 [Desktop Action capture]
 Name=Captura rápida
@@ -18,6 +18,10 @@ Exec={{exec}} --capture
 [Desktop Action focus]
 Name=Iniciar / pausar foco
 Exec={{exec}} --toggle-focus
+
+[Desktop Action tools]
+Name=Herramientas rápidas
+Exec={{exec}} --tools
 
 [Desktop Action open]
 Name=Abrir panel

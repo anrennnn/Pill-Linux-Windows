@@ -1,5 +1,27 @@
 # Cambios
 
+## 0.4.0
+
+### Avisos (Linux)
+- Las notificaciones del sistema y de las webs abiertas (Slack, Gmail, WhatsApp, Discord, Teams, Outlook, Notion, Linear, GitHub…) asoman en la isla con avatar, origen, título y texto. Clic para abrir la app o la web.
+- Se leen escuchando el bus de sesión (`BecomeMonitor`), sin sustituir al gestor de notificaciones del escritorio.
+- Durante el foco se guardan y se avisa al terminar; las críticas se muestran siempre. Reglas por app o web.
+- Vista Avisos en el panel (campana con contador), agrupada por origen, con resumen por IA.
+- **Windows: pendiente.** Leer notificaciones exige identidad de paquete (MSIX / Microsoft Store); llegará con esa versión.
+
+### Herramientas rápidas
+- Rejilla de accesos directos al estilo AssistiveTouch: pulsación larga, clic derecho o `Ctrl+Alt+H` (también `focuspill --tools` y acción del lanzador).
+- Hasta 8 herramientas configurables en Ajustes.
+
+### Comportamiento
+- La isla ya no roba el foco del teclado al cambiar de canción, de fase o al llegar un aviso: solo lo toma para la captura y el panel.
+- Iniciar con el sistema activado en el primer arranque y configurable en Ajustes → Inicio.
+- En la píldora con música y avisos se oculta el ecualizador para que quepa el botón de reproducción.
+
+### Calidad
+- Recorte de la ventana en Windows ajustado (sin bordes claros en las esquinas) y capturas de la documentación con fondo transparente.
+- 29 tests de la interfaz y 37 de Rust; prueba completa con el binario real en Xvfb, un gestor de notificaciones de prueba (`tools/fake_notification_server.py`) y `notify-send`, comprobando que el foco del teclado no cambia.
+
 ## 0.3.0
 
 ### Música: la isla dinámica dentro de la píldora

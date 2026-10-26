@@ -15,6 +15,8 @@ pub enum Mode {
     Pill,
     Capture,
     Media,
+    Notif,
+    Tools,
     Panel,
 }
 
@@ -23,9 +25,16 @@ impl Mode {
         match s {
             "capture" => Mode::Capture,
             "media" => Mode::Media,
+            "notif" => Mode::Notif,
+            "tools" => Mode::Tools,
             "panel" => Mode::Panel,
             _ => Mode::Pill,
         }
+    }
+
+    /// Modos en los que el usuario escribe y la ventana debe recibir el teclado.
+    pub fn wants_keyboard(self) -> bool {
+        matches!(self, Mode::Panel | Mode::Capture)
     }
 
     pub fn size(self) -> (f64, f64) {
@@ -33,6 +42,8 @@ impl Mode {
             Mode::Pill => (320.0, 60.0),
             Mode::Capture => (520.0, 72.0),
             Mode::Media => (480.0, 124.0),
+            Mode::Notif => (480.0, 112.0),
+            Mode::Tools => (360.0, 236.0),
             Mode::Panel => (460.0, 640.0),
         }
     }
@@ -217,8 +228,10 @@ pub fn set_input_region(window: &WebviewWindow, rect: Option<(f64, f64, f64, f64
             unsafe {
                 match rect {
                     Some((x, y, w, h, r)) => {
+                        // CreateRoundRectRgn no suaviza las esquinas: la recortamos 1 px por dentro
+                        // del borde dibujado para que no asomen píxeles claros alrededor de la isla.
                         let s = |v: f64| (v * scale).round() as i32;
-                        let rgn = CreateRoundRectRgn(s(x), s(y), s(x + w) + 1, s(y + h) + 1, s(r * 2.0), s(r * 2.0));
+                        let rgn = CreateRoundRectRgn(s(x) + 1, s(y) + 1, s(x + w), s(y + h), s(r * 2.0) - 1, s(r * 2.0) - 1);
                         SetWindowRgn(hwnd, rgn, 1);
                     }
                     None => {
@@ -260,6 +273,16 @@ mod tests {
         assert_eq!(Mode::parse("panel"), Mode::Panel);
         assert_eq!(Mode::parse("capture"), Mode::Capture);
         assert_eq!(Mode::parse("media"), Mode::Media);
+        assert_eq!(Mode::parse("tools"), Mode::Tools);
+    }
+
+    #[test]
+    fn only_typing_modes_take_the_keyboard() {
+        assert!(Mode::Panel.wants_keyboard());
+        assert!(Mode::Capture.wants_keyboard());
+        for m in [Mode::Pill, Mode::Media, Mode::Notif, Mode::Tools] {
+            assert!(!m.wants_keyboard(), "{m:?} no debe robar el foco");
+        }
         assert_eq!(Mode::parse("otra"), Mode::Pill);
     }
 }

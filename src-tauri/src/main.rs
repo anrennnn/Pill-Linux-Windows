@@ -7,6 +7,7 @@ mod data;
 mod http;
 mod integrations;
 mod media;
+mod notifications;
 mod system;
 mod tracker;
 mod window;
@@ -69,6 +70,7 @@ fn action_from_args(args: &[String]) -> Option<&'static str> {
         "--toggle-focus" | "-f" => Some("toggle-focus"),
         "--toggle-panel" | "-p" => Some("toggle-panel"),
         "--plan" => Some("ai-plan"),
+        "--tools" => Some("tools"),
         "--open" | "--show" | "-o" => Some("open"),
         _ => None,
     })
@@ -128,7 +130,9 @@ async fn import_data(app: AppHandle) -> Result<Option<String>, String> {
 fn set_mode(window: WebviewWindow, state: tauri::State<WinState>, mode: String) {
     let mode = Mode::parse(&mode);
     window::place(&window, &state, mode);
-    if mode != Mode::Pill {
+    // Solo pedimos el teclado cuando el usuario va a escribir (panel o captura).
+    // La isla de música, los avisos y las herramientas nunca interrumpen lo que escribes.
+    if mode.wants_keyboard() {
         let _ = window.set_focus();
     }
 }
@@ -319,6 +323,18 @@ fn media_pin(media: tauri::State<media::Media>, player: Option<String>) {
     *media.pinned.lock().unwrap() = player;
 }
 
+/* ---------------- Notificaciones ---------------- */
+
+/// Activa o desactiva la escucha de notificaciones (desactivada por defecto).
+#[tauri::command]
+fn set_notifications(app: AppHandle, enabled: bool) -> Result<(), String> {
+    if !notifications::SUPPORTED {
+        return Err("En Windows llegará con la versión de Microsoft Store".into());
+    }
+    notifications::set_enabled(&app, enabled);
+    Ok(())
+}
+
 /* ---------------- Integraciones ---------------- */
 
 #[tauri::command]
@@ -489,11 +505,12 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
-fn shortcuts() -> [(Shortcut, &'static str); 3] {
+fn shortcuts() -> [(Shortcut, &'static str); 4] {
     [
         (Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::Space), "capture"),
         (Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyF), "toggle-focus"),
         (Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyP), "toggle-panel"),
+        (Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyH), "tools"),
     ]
 }
 
@@ -605,6 +622,7 @@ fn main() {
             media_seek,
             media_art,
             media_pin,
+            set_notifications,
             license_status,
             license_activate,
             check_update,

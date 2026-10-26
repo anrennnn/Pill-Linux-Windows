@@ -15,6 +15,7 @@
       <span class="pill-label" id="pillLabel">FocusPill</span>
       <span class="eq" id="pillEq" hidden title="Música: pasa el ratón para ver los controles"><i></i><i></i><i></i></span>
       <span class="pill-meta" id="pillMeta"></span>
+      <button class="pill-bell" id="pillBell" hidden title="Avisos sin leer"></button>
       <button class="pill-btn" id="pillPlay" aria-label="Iniciar o pausar foco"></button>
       <div class="pill-progress"><i id="pillProgress"></i></div>
     </div>
@@ -25,6 +26,12 @@
       <input id="captureInput" placeholder="Captura algo…  (!  = hoy · n:  = nota)" spellcheck="false" />
       <span class="chip" id="captureDest">Bandeja</span>
     </form>
+
+    <!-- Aviso que se asoma -->
+    <div class="notif" id="notifView"></div>
+
+    <!-- Herramientas rápidas (estilo AssistiveTouch) -->
+    <div class="tools" id="toolsView"></div>
 
     <!-- Música (isla expandida) -->
     <div class="media" id="mediaView"></div>
@@ -37,6 +44,7 @@
           <span class="status-label" id="headLabel"></span>
           <span class="status-time" id="headTime"></span>
         </div>
+        <button class="icon-btn bell-btn" id="bellBtn" aria-label="Avisos" title="Avisos"></button>
         <button class="icon-btn" id="collapseBtn" aria-label="Plegar" title="Plegar (Esc)"></button>
       </header>
 
@@ -165,6 +173,11 @@
           <div id="appsBox"></div>
           <div class="section-title"><span>Dónde se fue tu foco esta semana</span></div>
           <ul class="list compact" id="topTasks"></ul>
+        </section>
+
+        <!-- AVISOS (desde la campana) -->
+        <section class="view" data-view="notifs">
+          <div id="notifsBox"></div>
         </section>
 
         <!-- AJUSTES -->

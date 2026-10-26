@@ -26,6 +26,7 @@ export const ui = {
   mediaPeek: false,
   apps: null,
   habitPrompt: null,
+  notifPeek: null,
 };
 
 let toastTimer = null;

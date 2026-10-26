@@ -4,11 +4,11 @@ import { invoke } from "./bridge.js";
 import {
   MAX_TODAY, addDays, agendaFor, atTime, breakAfter, categorize, completeTask, dayKey, expandEvents, habitCount, habitDone,
   habitReminderDue, hhmm, lastDays, minutesOn, moveItem, nextMonday, parseCapture, parseDay, parseIcs, phaseMs, remainingMs,
-  rollover, sortTasks, uid, usageSummary, weekStart, weeklyReviewDue,
+  notifDecision, pruneNotifs, rollover, sortTasks, uid, usageSummary, weekStart, weeklyReviewDue,
 } from "./core.js";
 import {
-  askMessages, classifyMessages, closeMessages, closeToText, parseClassify, parseClose, parsePlan, parseWeekly, planMessages,
-  weeklyMessages, weeklyToText,
+  askMessages, classifyMessages, closeMessages, closeToText, notifMessages, parseClassify, parseClose, parseNotifSummary, parsePlan,
+  parseWeekly, planMessages, weeklyMessages, weeklyToText,
 } from "./ai-prompts.js";
 import { F, S, commit, state } from "./store.js";
 import { chime, playAmbient, stopAmbient } from "./sounds.js";
@@ -249,6 +249,7 @@ const elapsedFocusMinutes = () => Math.floor((phaseMs(S(), "focus") - remaining(
 export function resetFocus() {
   const f = F();
   if (f.phase === "focus") recordSession(elapsedFocusMinutes());
+  releaseHeld();
   Object.assign(f, { phase: "idle", running: false, endAt: null, remaining: null });
   applyFocusEffects();
   commit();
@@ -267,6 +268,7 @@ export function completePhase({ natural = true, quiet = false } = {}) {
     recordSession(mins);
     f.cycle += 1;
     next = breakAfter(f.cycle, s.longEvery);
+    releaseHeld();
     if (!quiet) {
       const t = findTask(f.taskId);
       notify("Bloque de foco completado", `${t ? t.text + " · " : ""}${mins} min. Toca ${next === "long" ? "un descanso largo" : "descansar"}.`);
@@ -781,4 +783,108 @@ export function checkWeekly(now = Date.now()) {
   notify("Revisión semanal", aiReady() ? "Abre FocusPill → IA → Revisión semanal." : "Revisa tu semana en Progreso.");
   flash("Hora de la revisión semanal", 8000, "info");
   commit({ render: false });
+}
+
+/* ============================================================
+   Notificaciones del sistema y de las webs abiertas
+   ============================================================ */
+export const unreadNotifs = () => state.notifs.items.filter((n) => !n.read);
+export const heldNotifs = () => state.notifs.items.filter((n) => n.held);
+
+const inDeepFocus = () => F().phase === "focus" && F().running;
+
+/** Llega una notificación: se descarta, se guarda (durante el foco) o se muestra. */
+export function onNotification(n) {
+  const cfg = S().notifications;
+  if (!cfg.enabled) return "ignore";
+  const decision = notifDecision(n, { rules: state.notifs.rules, holdInFocus: cfg.holdInFocus, inFocus: inDeepFocus() });
+  if (decision === "ignore") return decision;
+  const item = { id: uid(), ...n, at: Date.now(), read: false, held: decision === "hold" };
+  state.notifs.items = pruneNotifs([...state.notifs.items, item], Date.now(), cfg.keepHours);
+  commit({ render: true });
+  return decision === "show" && cfg.show ? "show" : decision;
+}
+
+/** Al terminar el foco, avisa de lo que se guardó mientras tanto. */
+export function releaseHeld() {
+  const held = heldNotifs();
+  if (!held.length) return 0;
+  held.forEach((n) => (n.held = false));
+  const sources = [...new Set(held.map((n) => n.source))];
+  const label = sources.length === 1 ? sources[0] : `${sources.length} apps`;
+  flash(`🔔 ${held.length} ${held.length === 1 ? "aviso" : "avisos"} de ${label} mientras te concentrabas`, 9000, "info");
+  return held.length;
+}
+
+export function markNotifsRead(source) {
+  for (const n of state.notifs.items) if (!source || n.source === source) n.read = true;
+  commit();
+}
+
+export function clearNotifs() {
+  const before = state.notifs.items;
+  state.notifs.items = [];
+  state.notifs.summary = null;
+  commit();
+  toast("Avisos borrados", { label: "Deshacer", run: () => ((state.notifs.items = before), commit()) });
+}
+
+export function setNotifRule(source, rule) {
+  if (rule) state.notifs.rules[source] = rule;
+  else delete state.notifs.rules[source];
+  commit();
+}
+
+/** Abre la web o la app de la que vino el aviso. */
+export async function openNotifSource(n) {
+  n.read = true;
+  commit();
+  try {
+    if (n.domain) await invoke("open_url", { url: `https://${n.domain}` });
+    else if (n.desktop_entry) await invoke("launch_app", { id: n.desktop_entry.endsWith(".desktop") ? n.desktop_entry : `${n.desktop_entry}.desktop` });
+  } catch (e) {
+    toast(`No se pudo abrir ${n.source}: ${e}`);
+  }
+}
+
+export async function setNotificationsEnabled(on) {
+  try {
+    await invoke("set_notifications", { enabled: on });
+    S().notifications.enabled = on;
+    commit();
+    toast(on ? "Avisos activados: aparecerán en la píldora" : "Avisos desactivados");
+  } catch (e) {
+    S().notifications.enabled = false;
+    commit();
+    toast(String(e));
+  }
+}
+
+export async function summarizeNotifs() {
+  const items = unreadNotifs();
+  if (!items.length) return;
+  const result = await track("notifSummary", async () => {
+    const r = parseNotifSummary(await chat(notifMessages(items), true));
+    if (!r) throw new Error("La IA no devolvió un resumen.");
+    return r;
+  }, rerender);
+  if (result) {
+    state.notifs.summary = { ...result, at: Date.now(), count: items.length };
+    commit();
+  }
+}
+
+/* ============================================================
+   "No molestar" manual (desde las herramientas)
+   ============================================================ */
+export async function toggleManualDnd() {
+  const on = !state.ui.manualDnd;
+  try {
+    await invoke("set_dnd", { on });
+    state.ui.manualDnd = on;
+    commit();
+    flash(on ? "🌙 No molestar activado" : "No molestar desactivado", 2200, "info");
+  } catch (e) {
+    toast(String(e));
+  }
 }

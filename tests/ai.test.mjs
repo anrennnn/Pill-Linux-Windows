@@ -69,3 +69,13 @@ test("revisión semanal: prompt y validación", () => {
   assert.match(weeklyToText(w, "semana"), /Prioridades del lunes:\n• B/);
   assert.equal(parseWeekly("texto libre").summary, "texto libre");
 });
+
+import { notifMessages, parseNotifSummary } from "../ui/js/ai-prompts.js";
+
+test("resumen de notificaciones", () => {
+  const msgs = notifMessages([{ source: "Slack", title: "Ana", body: "¿Revisas   el informe?" }]);
+  assert.match(msgs[1].content, /\[Slack\] Ana: ¿Revisas el informe\?/);
+  const r = parseNotifSummary('{"resumen":"2 cosas","urgente":["Ana espera el informe"],"puede_esperar":["Newsletter"]}');
+  assert.deepEqual(r.urgent, ["Ana espera el informe"]);
+  assert.equal(parseNotifSummary("texto").summary, "texto");
+});

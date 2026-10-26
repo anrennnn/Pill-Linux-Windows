@@ -4,22 +4,40 @@ Píldora flotante de productividad para **Linux y Windows**. Vive arriba en el c
 
 Desde la v0.3 también es tu **isla dinámica**: muestra la música que suena y la controla sin salir de lo que haces (absorbe a [Islet](https://github.com/anrennnn/Islet-Linux)).
 
+En la v0.4 también recoge tus **avisos**: las notificaciones del sistema y de las webs abiertas (Slack, Gmail, WhatsApp…) asoman en la isla y, durante el foco, se guardan hasta que terminas. *Windows: pendiente, llegará con la versión de Microsoft Store.*
+
 Su IA es la de **tu distro** o un **modelo local** que elijas tú: ningún dato sale de tu equipo salvo hacia los servicios que conectes.
 
-![Píldora con música, píldora en foco e isla de música](docs/musica.png)
+![Píldora con música y avisos, píldora en foco, isla de música y aviso de Slack](docs/isla.png)
 
-![Panel: Hoy, Foco e IA](docs/panel.png)
+![Herramientas rápidas en tema oscuro y claro](docs/herramientas.png)
 
-![Progreso y ajustes de IA](docs/progreso-ajustes.png)
+![Panel: Hoy, Avisos e IA](docs/panel.png)
 
 ## Qué hace
 
 | Modo | Cómo se abre | Para qué |
 |---|---|---|
 | **Píldora** | Siempre visible | Tarea actual, temporizador, próxima reunión y botón ▶/‖ |
-| **Captura** | `Ctrl+Alt+Espacio` o clic derecho en la píldora | Apuntar algo sin salir de lo que haces |
+| **Captura** | `Ctrl+Alt+Espacio` | Apuntar algo sin salir de lo que haces |
+| **Herramientas** | Mantener pulsada la píldora, clic derecho o `Ctrl+Alt+H` | Accesos directos como el AssistiveTouch del iPhone |
+| **Aviso** | Al llegar una notificación | Quién, de qué app o web y qué dice; clic para abrirla |
 | **Música** | Pasar el ratón por la píldora, o solo al cambiar de canción | Carátula, título, progreso con salto y controles |
 | **Panel** | Clic en la píldora o `Ctrl+Alt+P` | Hoy, Foco, Notas, Progreso, IA y Ajustes |
+
+**Avisos** (Linux; Windows pendiente)
+- Lee las notificaciones del sistema sin sustituir al gestor del escritorio: solo lectura y en tu equipo.
+- Reconoce las webs abiertas en el navegador: Slack, Gmail, WhatsApp, Discord, Teams, Outlook, Notion, Linear, GitHub…
+- Durante el foco las guarda y, al terminar, te dice cuántas llegaron. Las críticas se muestran siempre.
+- Reglas por app o web: por defecto, mostrar siempre, guardar durante el foco o ignorar.
+- Vista en el panel agrupada por origen, con resumen por IA (qué atender ya y qué puede esperar). El historial se borra solo.
+
+**Herramientas rápidas**
+- Una rejilla de hasta 8 accesos: capturar, foco, música, siguiente canción, +1 al hábito, nota, planificar con IA, primer modo, no molestar, avisos, panel u ocultar.
+- Eliges cuáles en Ajustes y qué hace el clic derecho.
+
+**No te quita el teclado**
+- La isla se asoma con música, avisos o cambios de foco sin robar el foco de la ventana en la que escribes. Solo lo toma cuando vas a escribir en ella (captura y panel).
 
 **Música (isla dinámica)**
 - Funciona con Spotify, VLC, Firefox, Chrome, Rhythmbox y cualquier reproductor con MPRIS en Linux, o con controles multimedia en Windows.
@@ -61,6 +79,7 @@ Su IA es la de **tu distro** o un **modelo local** que elijas tú: ningún dato 
 - **Tiempo real por aplicación:** productivo, neutro o distracción. Se cambia la categoría con un clic. Solo se registra el nombre de la app, nunca títulos ni contenido.
 
 **Ajustes**
+- Iniciar con el sistema (activado por defecto; se desactiva en Ajustes → Inicio).
 - Tema y color de acento.
 - Monitor de la píldora.
 - Atajos del sistema con un clic (GNOME, Cinnamon, XFCE).
@@ -78,10 +97,12 @@ Descarga la última versión desde **[Releases](https://github.com/anrennnn/pill
 | Cualquier distro | `.AppImage` → `chmod +x FocusPill_*.AppImage && ./FocusPill_*.AppImage` |
 | Windows 10/11 | `.msi` o `-setup.exe` |
 
-**Descarga directa de la v0.3.0** (mismos archivos que la Release):
+**Descarga directa de la v0.4.0** (mismos archivos que la Release):
 
-- Linux: [FocusPill_0.3.0_amd64.deb](https://github.com/anrennnn/pill-linux-windows/raw/main/releases/FocusPill_0.3.0_amd64.deb) · [FocusPill-0.3.0-1.x86_64.rpm](https://github.com/anrennnn/pill-linux-windows/raw/main/releases/FocusPill-0.3.0-1.x86_64.rpm)
-- Windows: [FocusPill_0.3.0_x64-setup.exe](https://github.com/anrennnn/pill-linux-windows/raw/main/releases/FocusPill_0.3.0_x64-setup.exe) · [FocusPill_0.3.0_x64_es-ES.msi](https://github.com/anrennnn/pill-linux-windows/raw/main/releases/FocusPill_0.3.0_x64_es-ES.msi)
+- Linux: [FocusPill_0.4.0_amd64.deb](https://github.com/anrennnn/pill-linux-windows/raw/main/releases/FocusPill_0.4.0_amd64.deb) · [FocusPill-0.4.0-1.x86_64.rpm](https://github.com/anrennnn/pill-linux-windows/raw/main/releases/FocusPill-0.4.0-1.x86_64.rpm)
+- Windows: [FocusPill_0.4.0_x64-setup.exe](https://github.com/anrennnn/pill-linux-windows/raw/main/releases/FocusPill_0.4.0_x64-setup.exe) · [FocusPill_0.4.0_x64_es-ES.msi](https://github.com/anrennnn/pill-linux-windows/raw/main/releases/FocusPill_0.4.0_x64_es-ES.msi)
+
+> **Windows: avisos pendientes.** La v0.4 de Windows tiene herramientas rápidas, autoarranque y el resto de novedades, pero no lee notificaciones: Windows solo lo permite a apps empaquetadas (MSIX / Microsoft Store). Llegará con esa versión.
 
 Los instaladores de Windows no están firmados con certificado: si aparece «Windows protegió su PC», pulsa «Más información» → «Ejecutar de todos modos». El AppImage, por su tamaño, solo está en Releases.
 
@@ -109,6 +130,7 @@ Para probar sin un modelo: `python3 tools/mock-ai-server.py` simula una IA que c
 ```bash
 focuspill                 # arranca (si ya está abierta, abre el panel)
 focuspill --capture       # captura rápida
+focuspill --tools         # herramientas rápidas
 focuspill --toggle-focus  # iniciar / pausar foco
 focuspill --toggle-panel  # abrir / plegar panel
 focuspill --plan          # planificar el día con IA
@@ -119,6 +141,7 @@ focuspill --plan          # planificar el día con IA
 - Todo se guarda en local: `~/.local/share/com.focuspill.app/` en Linux y `%APPDATA%\com.focuspill.app\` en Windows.
 - Los archivos son privados (`0600`) porque guardan los tokens de las integraciones.
 - Se hace una copia diaria automática y se conservan 14.
+- Los avisos se leen en local y se borran solos (48 h por defecto). FocusPill no responde ni envía nada.
 - Los servicios externos solo se contactan si los configuras: calendarios ICS, Todoist, Notion, licencias y actualizaciones.
 
 ## Desarrollo
@@ -134,7 +157,9 @@ npm run dev            # modo desarrollo
 npm run build:linux    # .deb, .rpm y AppImage
 ```
 
-Para previsualizar la interfaz en el navegador, sirve `ui/` con `python3 -m http.server` y abre `index.html?mode=panel&tab=ai&plan=1`.
+Para previsualizar la interfaz en el navegador, sirve `ui/` con `python3 -m http.server` y abre `index.html?mode=panel&tab=ai&plan=1` (añade `&notif=1` para simular un aviso y `&shot=1` para fondo transparente).
+
+Para probar los avisos sin escritorio: `python3 tools/fake_notification_server.py` hace de gestor de notificaciones y `notify-send -a "Google Chrome" Ana "app.slack.com\n\nHola"` simula un mensaje de Slack.
 
 ```
 ui/js/core.js          lógica pura: fechas, Pomodoro, recurrencias, calendario ICS

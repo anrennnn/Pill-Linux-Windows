@@ -30,5 +30,7 @@ export const ICONS = {
   prev: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="5" width="2.6" height="14" rx="1"/><path d="M20 6.2v11.6a1 1 0 0 1-1.55.83L9.6 12.83a1 1 0 0 1 0-1.66l8.85-5.8A1 1 0 0 1 20 6.2z"/></svg>',
   next: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="17.4" y="5" width="2.6" height="14" rx="1"/><path d="M4 6.2v11.6a1 1 0 0 0 1.55.83l8.85-5.8a1 1 0 0 0 0-1.66L5.55 5.37A1 1 0 0 0 4 6.2z"/></svg>',
   rocket: line('<path d="M5 15c-1.5 1.5-2 5-2 5s3.5-.5 5-2"/><path d="M9 12a13 13 0 0 1 12-9 13 13 0 0 1-9 12l-3-3z"/><path d="M9 12H5l2-4h5M12 15v4l4-2v-5"/>'),
+  bell: line('<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>'),
+  grid: line('<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/>'),
   sub: line('<path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6h.01M4 12h.01M4 18h.01"/>', 2.4),
 };

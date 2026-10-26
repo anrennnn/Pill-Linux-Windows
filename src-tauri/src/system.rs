@@ -14,6 +14,7 @@ pub struct EnvInfo {
     pub dnd_supported: bool,
     pub tracking_supported: bool,
     pub system_shortcuts_supported: bool,
+    pub notifications_supported: bool,
     pub edition: &'static str,
 }
 
@@ -64,6 +65,7 @@ pub fn env_info(edition: &'static str) -> EnvInfo {
         dnd_supported: cfg!(target_os = "linux") && d != Desktop::Other,
         tracking_supported: cfg!(windows) || (cfg!(target_os = "linux") && std::env::var_os("DISPLAY").is_some()),
         system_shortcuts_supported: cfg!(target_os = "linux") && matches!(d, Desktop::Gnome | Desktop::Cinnamon | Desktop::Xfce),
+        notifications_supported: crate::notifications::SUPPORTED,
         edition,
     }
 }

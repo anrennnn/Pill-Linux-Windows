@@ -177,3 +177,26 @@ export function weeklyToText(w, weekLabel) {
   if (w.priorities.length) parts.push("Prioridades del lunes:\n" + w.priorities.map((x) => `• ${x}`).join("\n"));
   return parts.filter(Boolean).join("\n\n");
 }
+
+/** Resumen de las notificaciones acumuladas (por ejemplo, durante el foco). */
+export function notifMessages(items) {
+  const lines = items.slice(0, 40).map((n) => `- [${n.source}] ${n.title}${n.body ? ": " + n.body.replace(/\s+/g, " ").slice(0, 160) : ""}`);
+  return [
+    { role: "system", content: SYSTEM },
+    {
+      role: "user",
+      content: `Estas son las notificaciones que recibí mientras me concentraba:
+${lines.join("\n")}
+
+Devuelve SOLO un JSON: {"resumen":"1-2 frases","urgente":["lo que debo atender ya, con quién y qué"],"puede_esperar":["lo demás, agrupado"]}
+No inventes nada que no esté en la lista.`,
+    },
+  ];
+}
+
+export function parseNotifSummary(text) {
+  const data = extractJson(text);
+  if (!data) return text?.trim() ? { summary: text.trim().slice(0, 800), urgent: [], later: [] } : null;
+  const arr = (v) => (Array.isArray(v) ? v.map((x) => String(x).slice(0, 200)).filter(Boolean).slice(0, 6) : []);
+  return { summary: String(data.resumen || "").slice(0, 800), urgent: arr(data.urgente), later: arr(data.puede_esperar) };
+}

@@ -95,6 +95,9 @@ export const DEFAULT_SETTINGS = {
   habitHours: { start: "09:00", end: "21:00" },
   weeklyReview: { enabled: true, day: 5, time: "17:00" },
   modes: [],
+  notifications: { enabled: false, show: true, holdInFocus: true, keepHours: 48 },
+  tools: { rightClick: "tools", items: ["capture", "focus", "media", "next", "habit", "note", "plan", "panel"] },
+  startup: { asked: false },
 };
 
 export const DEFAULT_HABITS = () => [
@@ -102,10 +105,11 @@ export const DEFAULT_HABITS = () => [
 ];
 
 export const DEFAULT_STATE = () => ({
-  v: 3,
+  v: 4,
   tasks: [],
   habits: DEFAULT_HABITS(),
   activeMode: null,
+  notifs: { items: [], rules: {} },
   notes: [],
   sessions: [],
   blocks: [],
@@ -121,9 +125,9 @@ export function migrate(raw) {
   const base = DEFAULT_STATE();
   if (!raw || typeof raw !== "object") return base;
   const s = { ...base, ...raw };
-  s.v = 3;
+  s.v = 4;
   s.settings = { ...base.settings, ...(raw.settings || {}) };
-  for (const k of ["ambient", "ai", "todoist", "notion", "media", "habitHours", "weeklyReview"]) s.settings[k] = { ...base.settings[k], ...(raw.settings?.[k] || {}) };
+  for (const k of ["ambient", "ai", "todoist", "notion", "media", "habitHours", "weeklyReview", "notifications", "tools", "startup"]) s.settings[k] = { ...base.settings[k], ...(raw.settings?.[k] || {}) };
   s.focus = { ...base.focus, ...(raw.focus || {}) };
   s.calendar = { ...base.calendar, ...(raw.calendar || {}) };
   s.ai = { ...base.ai, ...(raw.ai || {}) };
@@ -133,6 +137,7 @@ export function migrate(raw) {
   // Quien viene de la v0.2 recibe el hábito de agua; si ya los borró, se respeta.
   s.habits = Array.isArray(raw.habits) ? raw.habits.map((h) => ({ counts: {}, remindEvery: 0, target: 1, ...h })) : DEFAULT_HABITS();
   if (!Array.isArray(s.settings.modes)) s.settings.modes = [];
+  s.notifs = { items: Array.isArray(raw.notifs?.items) ? raw.notifs.items : [], rules: { ...(raw.notifs?.rules || {}) } };
   return s;
 }
 
@@ -662,4 +667,51 @@ export function mediaPosition(media, receivedAt, now = Date.now()) {
   const drift = media.status === "Playing" ? (now - receivedAt) / 1000 : 0;
   const pos = media.position + drift;
   return media.length > 0 ? Math.min(pos, media.length) : pos;
+}
+
+/* ============================================================
+   Notificaciones
+   ============================================================ */
+export const NOTIF_RULES = { hold: "Guardar durante el foco", show: "Mostrar siempre", always: "Mostrar incluso en foco", ignore: "Silenciar" };
+
+/** Qué hacer con una notificación nueva: "show", "hold" o "ignore". */
+export function notifDecision(n, { rules = {}, holdInFocus = true, inFocus = false } = {}) {
+  const rule = rules[n.source] || (holdInFocus ? "hold" : "show");
+  if (rule === "ignore") return "ignore";
+  if (rule === "always" || n.urgency >= 2) return "show";
+  if (inFocus && (rule === "hold" || holdInFocus)) return rule === "show" && !holdInFocus ? "show" : "hold";
+  return "show";
+}
+
+/** Borra las notificaciones antiguas y limita el historial. */
+export function pruneNotifs(items, now = Date.now(), keepHours = 48, max = 150) {
+  const limit = now - keepHours * 3600000;
+  return items.filter((n) => n.at >= limit).slice(-max);
+}
+
+/** Agrupa por origen, con las más recientes primero. */
+export function groupNotifs(items) {
+  const groups = new Map();
+  for (const n of [...items].sort((a, b) => b.at - a.at)) {
+    if (!groups.has(n.source)) groups.set(n.source, { source: n.source, items: [], unread: 0 });
+    const g = groups.get(n.source);
+    g.items.push(n);
+    if (!n.read) g.unread++;
+  }
+  return [...groups.values()].sort((a, b) => b.items[0].at - a.items[0].at);
+}
+
+const AVATAR_COLORS = ["#8492ff", "#5ab0ff", "#2dd4bf", "#4ade80", "#fbbf24", "#fb923c", "#f472b6", "#c084fc"];
+export function avatarColor(name = "") {
+  let h = 0;
+  for (const c of name) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return AVATAR_COLORS[h % AVATAR_COLORS.length];
+}
+
+export function timeAgo(t, now = Date.now()) {
+  const m = Math.floor((now - t) / 60000);
+  if (m < 1) return "ahora";
+  if (m < 60) return `hace ${m} min`;
+  const h = Math.floor(m / 60);
+  return h < 24 ? `hace ${h} h` : `hace ${Math.floor(h / 24)} d`;
 }

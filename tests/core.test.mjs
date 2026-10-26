@@ -77,13 +77,13 @@ test("mover elementos", () => {
 
 test("migración desde la v0.1", () => {
   const s = migrate({ tasks: [{ id: "x", text: "a", list: "today", done: false, createdAt: 1 }], settings: { focusMin: 50 } });
-  assert.equal(s.v, 3);
+  assert.equal(s.v, 4);
   assert.equal(s.settings.focusMin, 50);
   assert.equal(s.settings.breakMin, 5);
   assert.equal(s.settings.ai.provider, "none");
   assert.deepEqual(s.tasks[0].sub, []);
   assert.deepEqual(s.blocks, []);
-  assert.equal(migrate(null).v, 3);
+  assert.equal(migrate(null).v, 4);
 });
 
 test("JSON dentro de texto de un modelo", () => {
@@ -214,4 +214,37 @@ test("multimedia: tiempo y posición estimada", () => {
   assert.equal(mediaPosition(m, 1000, 2500), 11.5);
   assert.equal(mediaPosition(m, 1000, 9000), 12, "no pasa de la duración");
   assert.equal(mediaPosition({ ...m, status: "Paused" }, 1000, 9000), 10);
+});
+
+/* ---------------- v0.4 ---------------- */
+import { avatarColor, groupNotifs, notifDecision, pruneNotifs, timeAgo } from "../ui/js/core.js";
+
+test("notificaciones: qué se muestra, qué se guarda y qué se silencia", () => {
+  const slack = { source: "Slack", urgency: 1 };
+  assert.equal(notifDecision(slack, { inFocus: false }), "show");
+  assert.equal(notifDecision(slack, { inFocus: true }), "hold", "durante el foco se guardan");
+  assert.equal(notifDecision(slack, { inFocus: true, holdInFocus: false }), "show");
+  assert.equal(notifDecision(slack, { inFocus: true, rules: { Slack: "always" } }), "show");
+  assert.equal(notifDecision(slack, { inFocus: false, rules: { Slack: "ignore" } }), "ignore");
+  assert.equal(notifDecision({ source: "Batería", urgency: 2 }, { inFocus: true }), "show", "las críticas pasan siempre");
+  assert.equal(notifDecision(slack, { inFocus: true, holdInFocus: false, rules: { Slack: "hold" } }), "hold");
+});
+
+test("notificaciones: historial, grupos y detalles", () => {
+  const now = 10 * 3600000;
+  const items = [
+    { source: "Slack", at: now - 1000, read: false },
+    { source: "Gmail", at: now - 2000, read: true },
+    { source: "Slack", at: now - 3000, read: true },
+    { source: "Viejo", at: now - 50 * 3600000, read: false },
+  ];
+  assert.equal(pruneNotifs(items, now, 48).length, 3);
+  assert.equal(pruneNotifs(items, now, 48, 2).length, 2);
+  const g = groupNotifs(pruneNotifs(items, now));
+  assert.deepEqual(g.map((x) => [x.source, x.items.length, x.unread]), [["Slack", 2, 1], ["Gmail", 1, 0]]);
+  assert.equal(avatarColor("Slack"), avatarColor("Slack"));
+  assert.equal(timeAgo(now - 30000, now), "ahora");
+  assert.equal(timeAgo(now - 5 * 60000, now), "hace 5 min");
+  assert.equal(timeAgo(now - 3 * 3600000, now), "hace 3 h");
+  assert.equal(migrate({}).settings.notifications.enabled, false, "desactivadas por defecto");
 });

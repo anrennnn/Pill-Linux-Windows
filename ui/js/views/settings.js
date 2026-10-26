@@ -6,6 +6,8 @@ import { dayKey, esc, uid } from "../core.js";
 import { ICONS } from "../icons.js";
 import { S, commit, replace, state } from "../store.js";
 import { $, busy, toast, track, ui } from "../ui.js";
+import { NOTIF_RULES } from "../core.js";
+import { TOOLS } from "./tools.js";
 
 const ACCENTS = ["#8492ff", "#5ab0ff", "#2dd4bf", "#4ade80", "#fbbf24", "#fb923c", "#f472b6", "#c084fc"];
 const CAL_COLORS = ["#5ab0ff", "#f472b6", "#4ade80", "#fbbf24", "#c084fc", "#fb923c"];
@@ -136,6 +138,54 @@ function screenSection() {
        <dt><kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>P</kbd></dt><dd>Abrir / plegar panel</dd>
      </dl>
      ${shortcuts}`
+  );
+}
+
+function startupSection() {
+  return group(
+    "Inicio",
+    `<label class="toggle"><input type="checkbox" id="autostart" ${ui.autostart ? "checked" : ""} /><span>Iniciar FocusPill con el sistema<small>Se abre sola al encender el equipo o al iniciar sesión</small></span></label>`
+  );
+}
+
+function toolsSection() {
+  const chosen = S().tools.items;
+  const rows = Object.entries(TOOLS)
+    .map(([id, t]) => `<label class="tool-pick"><input type="checkbox" data-tool-pick="${id}" ${chosen.includes(id) ? "checked" : ""} /><span class="tool-icon small">${t.icon()}</span><span>${esc(t.name)}</span></label>`)
+    .join("");
+  return group(
+    "Herramientas rápidas",
+    `<p class="hint">Como AssistiveTouch del iPhone: mantén pulsada la píldora, haz clic derecho o pulsa <kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>H</kbd>. Elige hasta 8.</p>
+     <div class="tool-picks">${rows}</div>
+     <label class="field-line inline">Clic derecho en la píldora
+       <select class="input" data-set="tools.rightClick" style="width:auto"><option value="tools" ${S().tools.rightClick === "tools" ? "selected" : ""}>Herramientas</option><option value="capture" ${S().tools.rightClick === "capture" ? "selected" : ""}>Captura rápida</option></select>
+     </label>`,
+    "set-tools"
+  );
+}
+
+function notificationsSection() {
+  if (!ui.env?.notifications_supported) {
+    return group("Avisos", `<p class="hint">En Windows, solo las apps de la Microsoft Store pueden leer las notificaciones del sistema. Llegará con esa versión (pendiente).</p>`);
+  }
+  const cfg = S().notifications;
+  const sources = [...new Set([...Object.keys(state.notifs.rules), ...state.notifs.items.map((n) => n.source)])].sort();
+  const rules = sources
+    .map(
+      (src) => `<div class="edit-row"><span class="rule-name">${esc(src)}</span>
+        <select class="input" data-rule="${esc(src)}"><option value="">Por defecto</option>${Object.entries(NOTIF_RULES).map(([k, v]) => `<option value="${k}" ${state.notifs.rules[src] === k ? "selected" : ""}>${v}</option>`).join("")}</select></div>`
+    )
+    .join("");
+  return group(
+    "Avisos",
+    `<label class="toggle"><input type="checkbox" id="notifEnabled" ${cfg.enabled ? "checked" : ""} /><span>Mostrar las notificaciones en la píldora<small>Del sistema y de las webs abiertas (Slack, Gmail, WhatsApp…). Solo lectura y en tu equipo.</small></span></label>
+     ${cfg.enabled ? `${toggle("notifications.show", "Asomar la isla al llegar un aviso")}
+       ${toggle("notifications.holdInFocus", "Guardarlos durante el foco y avisar al terminar", "Los críticos (batería, sistema) se muestran siempre")}
+       <label class="field-line inline">Borrar historial a las
+         <select class="input" data-set="notifications.keepHours" style="width:auto">${[[24, "24 h"], [48, "48 h"], [168, "7 días"]].map(([v, l]) => `<option value="${v}" ${Number(cfg.keepHours) === v ? "selected" : ""}>${l}</option>`).join("")}</select>
+       </label>
+       ${rules ? `<div class="mini-title">Por app</div><div class="edit-list">${rules}</div>` : `<p class="hint">Cuando lleguen avisos podrás elegir qué hacer con cada app.</p>`}` : ""}`,
+    "set-notifs"
   );
 }
 
@@ -294,6 +344,7 @@ export function render() {
   const s = S();
   const env = ui.env || {};
   box.innerHTML = [
+    startupSection(),
     group(
       "Apariencia",
       `<div class="seg three">${[["dark", "Oscuro"], ["light", "Claro"], ["system", "Sistema"]].map(([k, v]) => `<button data-act="theme" data-value="${k}" class="${s.theme === k ? "active" : ""}">${v}</button>`).join("")}</div>
@@ -310,9 +361,10 @@ export function render() {
        ${toggle("sound", "Sonido al terminar")}
        ${toggle("collapseOnBlur", "Plegar al hacer clic fuera")}
        ${env.dnd_supported ? toggle("dnd", "«No molestar» durante el foco", "Silencia las notificaciones del escritorio") : ""}
-       ${toggle("distractionAlerts", "Avisar si me distraigo durante el foco")}
-       <label class="toggle"><input type="checkbox" id="autostart" ${ui.autostart ? "checked" : ""} /><span>Abrir al iniciar sesión</span></label>`
+       ${toggle("distractionAlerts", "Avisar si me distraigo durante el foco")}`
     ),
+    toolsSection(),
+    notificationsSection(),
     modesSection(),
     habitsSection(),
     musicSection(),
@@ -384,6 +436,22 @@ export function bind(root, { rerender, applyTheme, collapse }) {
       }
       el.value = "";
       return;
+    }
+    if (el.id === "notifEnabled") return A.setNotificationsEnabled(el.checked);
+    if (el.dataset.rule) return A.setNotifRule(el.dataset.rule, el.value);
+    if (el.dataset.toolPick) {
+      const items = S().tools.items.filter((x) => x !== el.dataset.toolPick);
+      if (el.checked) {
+        if (items.length >= 8) {
+          el.checked = false;
+          return toast("Máximo 8 herramientas");
+        }
+        // Se respeta el orden del catálogo.
+        items.push(el.dataset.toolPick);
+        items.sort((a, b) => Object.keys(TOOLS).indexOf(a) - Object.keys(TOOLS).indexOf(b));
+      }
+      S().tools.items = items;
+      return commit();
     }
     if (el.dataset.actChange === "media-pin") {
       A.mediaPin(el.value || null);
