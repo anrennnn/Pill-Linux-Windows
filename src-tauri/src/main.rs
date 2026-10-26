@@ -1,159 +1,43 @@
-// FocusPill: píldora flotante de productividad para escritorios Linux.
+// FocusPill: píldora flotante de productividad para Linux y Windows.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+mod ai;
+mod data;
+mod http;
+mod integrations;
+mod system;
+mod tracker;
+mod window;
 
 use std::{
     fs,
-    path::PathBuf,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Mutex,
-    },
+    sync::{atomic::Ordering, Mutex},
     thread,
-    time::{Duration, Instant},
+    time::Duration,
 };
 
-use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::TrayIconBuilder,
-    AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, WebviewWindow, WindowEvent,
+    AppHandle, Emitter, Manager, WebviewWindow, WindowEvent,
 };
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
+use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 use tauri_plugin_notification::NotificationExt;
+use tauri_plugin_updater::UpdaterExt;
 
-/// Tamaños lógicos de la ventana para cada modo. La píldora visible se dibuja
-/// centrada arriba dentro de la ventana; el resto es margen transparente para la sombra.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-enum Mode {
-    Pill,
-    Capture,
-    Panel,
+use tracker::Tracker;
+use window::{Geometry, Mode, WinState};
+
+/// Acción pendiente hasta que la interfaz esté lista para recibirla.
+struct Pending {
+    action: Mutex<Option<String>>,
+    ready: std::sync::atomic::AtomicBool,
 }
 
-impl Mode {
-    fn parse(s: &str) -> Mode {
-        match s {
-            "capture" => Mode::Capture,
-            "panel" => Mode::Panel,
-            _ => Mode::Pill,
-        }
-    }
-
-    fn size(self) -> (f64, f64) {
-        match self {
-            Mode::Pill => (320.0, 60.0),
-            Mode::Capture => (520.0, 72.0),
-            Mode::Panel => (440.0, 600.0),
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Default)]
-struct Geometry {
-    x: i32,
-    y: i32,
-}
-
-struct AppState {
-    mode: Mutex<Mode>,
-    /// Esquina superior izquierda de la ventana en modo píldora (px físicos).
-    anchor: Mutex<Option<(i32, i32)>>,
-    anchor_dirty: AtomicBool,
-    /// Los movimientos que provocamos nosotros no deben cambiar el ancla.
-    last_place: Mutex<Instant>,
-    pending_action: Mutex<Option<String>>,
-}
-
-fn data_file(app: &AppHandle, name: &str) -> Option<PathBuf> {
-    let dir = app.path().app_data_dir().ok()?;
-    fs::create_dir_all(&dir).ok()?;
-    Some(dir.join(name))
-}
-
-fn write_atomic(path: &PathBuf, data: &str) -> std::io::Result<()> {
-    let tmp = path.with_extension("tmp");
-    fs::write(&tmp, data)?;
-    fs::rename(tmp, path)
-}
-
-/// Las sesiones Wayland no permiten a una app fijar su posición ni mantenerse
-/// encima de las demás, así que usamos XWayland salvo que el usuario lo desactive.
-fn prepare_linux_env() {
-    #[cfg(target_os = "linux")]
-    {
-        let wayland = std::env::var("XDG_SESSION_TYPE").map(|v| v == "wayland").unwrap_or(false)
-            || std::env::var_os("WAYLAND_DISPLAY").is_some();
-        if wayland && std::env::var_os("FOCUSPILL_NATIVE_WAYLAND").is_none() {
-            std::env::set_var("GDK_BACKEND", "x11");
-        }
-        // Evita ventanas en blanco con algunos drivers (NVIDIA, VMs).
-        if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
-            std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
-        }
-    }
-}
-
-fn default_anchor(window: &WebviewWindow) -> (i32, i32) {
-    let scale = window.scale_factor().unwrap_or(1.0);
-    let pill_w = (Mode::Pill.size().0 * scale) as i32;
-    match window.primary_monitor().ok().flatten() {
-        Some(m) => {
-            let pos = m.position();
-            let size = m.size();
-            (pos.x + (size.width as i32 - pill_w) / 2, pos.y + (10.0 * scale) as i32)
-        }
-        None => (200, 10),
-    }
-}
-
-/// Monitor que contiene el punto dado, o el principal si no hay ninguno.
-fn monitor_bounds(window: &WebviewWindow, x: i32, y: i32) -> Option<(i32, i32, i32, i32)> {
-    let monitors = window.available_monitors().ok()?;
-    let hit = monitors.iter().find(|m| {
-        let p = m.position();
-        let s = m.size();
-        x >= p.x && x < p.x + s.width as i32 && y >= p.y && y < p.y + s.height as i32
-    });
-    let m = match hit {
-        Some(m) => m.clone(),
-        None => window.primary_monitor().ok().flatten()?,
-    };
-    let p = m.position();
-    let s = m.size();
-    Some((p.x, p.y, s.width as i32, s.height as i32))
-}
-
-fn place(window: &WebviewWindow, state: &AppState, mode: Mode) {
-    let scale = window.scale_factor().unwrap_or(1.0);
-    let (w, h) = mode.size();
-    let (pw, ph) = ((w * scale) as i32, (h * scale) as i32);
-    let pill_w = (Mode::Pill.size().0 * scale) as i32;
-
-    let anchor = {
-        let mut a = state.anchor.lock().unwrap();
-        if a.is_none() {
-            *a = Some(default_anchor(window));
-        }
-        a.unwrap()
-    };
-
-    let center_x = anchor.0 + pill_w / 2;
-    let mut x = center_x - pw / 2;
-    let mut y = anchor.1;
-    if let Some((mx, my, mw, mh)) = monitor_bounds(window, center_x, anchor.1) {
-        x = x.clamp(mx, (mx + mw - pw).max(mx));
-        if y + ph > my + mh {
-            y = (my + mh - ph).max(my);
-        }
-        y = y.max(my);
-    }
-
-    *state.mode.lock().unwrap() = mode;
-    *state.last_place.lock().unwrap() = Instant::now();
-    let _ = window.set_size(PhysicalSize::new(pw as u32, ph as u32));
-    let _ = window.set_position(PhysicalPosition::new(x, y));
-}
+const EDITION: &str = if cfg!(feature = "licensing") { "store" } else { "community" };
 
 fn show_main(app: &AppHandle) -> Option<WebviewWindow> {
     let window = app.get_webview_window("main")?;
@@ -165,8 +49,15 @@ fn show_main(app: &AppHandle) -> Option<WebviewWindow> {
 
 /// Acciones externas: argumentos de línea de comandos, bandeja y atajos globales.
 fn dispatch_action(app: &AppHandle, action: &str) {
-    if show_main(app).is_some() {
+    if show_main(app).is_none() {
+        return;
+    }
+    let pending = app.state::<Pending>();
+    if pending.ready.load(Ordering::Relaxed) {
         let _ = app.emit("pill-action", action.to_string());
+    } else {
+        // La interfaz aún arranca: la recogerá con take_pending_action.
+        *pending.action.lock().unwrap() = Some(action.to_string());
     }
 }
 
@@ -174,29 +65,75 @@ fn action_from_args(args: &[String]) -> Option<&'static str> {
     args.iter().skip(1).find_map(|a| match a.as_str() {
         "--capture" | "-c" => Some("capture"),
         "--toggle-focus" | "-f" => Some("toggle-focus"),
+        "--toggle-panel" | "-p" => Some("toggle-panel"),
+        "--plan" => Some("ai-plan"),
         "--open" | "--show" | "-o" => Some("open"),
         _ => None,
     })
 }
 
+fn blocking<T: Send + 'static>(f: impl FnOnce() -> Result<T, String> + Send + 'static) -> impl std::future::Future<Output = Result<T, String>> {
+    async move { tauri::async_runtime::spawn_blocking(f).await.map_err(|e| e.to_string())? }
+}
+
+/* ---------------- Datos ---------------- */
+
 #[tauri::command]
 fn load_state(app: AppHandle) -> Option<String> {
-    fs::read_to_string(data_file(&app, "state.json")?).ok()
+    data::read_state(&app)
 }
 
 #[tauri::command]
 fn save_state(app: AppHandle, data: String) -> Result<(), String> {
-    let path = data_file(&app, "state.json").ok_or("sin carpeta de datos")?;
-    write_atomic(&path, &data).map_err(|e| e.to_string())
+    data::write_state(&app, &data)
 }
 
 #[tauri::command]
-fn set_mode(window: WebviewWindow, state: tauri::State<AppState>, mode: String) {
+fn list_backups(app: AppHandle) -> Vec<String> {
+    data::list_backups(&app)
+}
+
+#[tauri::command]
+fn read_backup(app: AppHandle, day: String) -> Result<String, String> {
+    data::read_backup(&app, &day)
+}
+
+#[tauri::command]
+async fn export_data(app: AppHandle, data: String, suggested: String) -> Result<Option<String>, String> {
+    let picked = app
+        .dialog()
+        .file()
+        .set_file_name(&suggested)
+        .add_filter("Copia de FocusPill", &["json"])
+        .blocking_save_file();
+    let Some(path) = picked.and_then(|p| p.into_path().ok()) else { return Ok(None) };
+    data::write_private(&path, &data).map_err(|e| e.to_string())?;
+    Ok(Some(path.display().to_string()))
+}
+
+#[tauri::command]
+async fn import_data(app: AppHandle) -> Result<Option<String>, String> {
+    let picked = app.dialog().file().add_filter("Copia de FocusPill", &["json"]).blocking_pick_file();
+    let Some(path) = picked.and_then(|p| p.into_path().ok()) else { return Ok(None) };
+    let text = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    serde_json::from_str::<Value>(&text).map_err(|_| "Ese archivo no es una copia válida".to_string())?;
+    Ok(Some(text))
+}
+
+/* ---------------- Ventana ---------------- */
+
+#[tauri::command]
+fn set_mode(window: WebviewWindow, state: tauri::State<WinState>, mode: String) {
     let mode = Mode::parse(&mode);
-    place(&window, &state, mode);
+    window::place(&window, &state, mode);
     if mode != Mode::Pill {
         let _ = window.set_focus();
     }
+}
+
+#[tauri::command]
+fn set_input_region(window: WebviewWindow, rect: Option<[f64; 5]>) {
+    window::set_input_region(&window, rect.map(|r| (r[0], r[1], r[2], r[3], r[4])));
 }
 
 #[tauri::command]
@@ -205,13 +142,51 @@ fn start_drag(window: WebviewWindow) {
 }
 
 #[tauri::command]
-fn reset_position(window: WebviewWindow, state: tauri::State<AppState>) {
-    let anchor = default_anchor(&window);
-    *state.anchor.lock().unwrap() = Some(anchor);
+fn reset_position(window: WebviewWindow, state: tauri::State<WinState>) {
+    let monitor = state.monitor.lock().unwrap().clone();
+    *state.anchor.lock().unwrap() = Some(window::default_anchor(&window, monitor.as_deref()));
     state.anchor_dirty.store(true, Ordering::Relaxed);
     let mode = *state.mode.lock().unwrap();
-    place(&window, &state, mode);
+    window::place(&window, &state, mode);
 }
+
+#[tauri::command]
+fn list_monitors(window: WebviewWindow) -> Vec<window::MonitorInfo> {
+    window::monitors(&window)
+}
+
+#[tauri::command]
+fn set_monitor(window: WebviewWindow, state: tauri::State<WinState>, name: Option<String>) {
+    *state.monitor.lock().unwrap() = name.clone();
+    *state.anchor.lock().unwrap() = Some(window::default_anchor(&window, name.as_deref()));
+    state.anchor_dirty.store(true, Ordering::Relaxed);
+    let mode = *state.mode.lock().unwrap();
+    window::place(&window, &state, mode);
+}
+
+#[tauri::command]
+fn hide_pill(window: WebviewWindow) {
+    let _ = window.hide();
+}
+
+#[tauri::command]
+fn quit(app: AppHandle) {
+    app.exit(0);
+}
+
+/// Errores de la interfaz: se escriben en la terminal para poder diagnosticarlos.
+#[tauri::command]
+fn log_js(level: String, message: String) {
+    eprintln!("focuspill [js {level}]: {message}");
+}
+
+#[tauri::command]
+fn take_pending_action(pending: tauri::State<Pending>) -> Option<String> {
+    pending.ready.store(true, Ordering::Relaxed);
+    pending.action.lock().unwrap().take()
+}
+
+/* ---------------- Sistema ---------------- */
 
 #[tauri::command]
 fn notify(app: AppHandle, title: String, body: String) {
@@ -231,29 +206,182 @@ fn set_autostart(app: AppHandle, enabled: bool) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn take_pending_action(state: tauri::State<AppState>) -> Option<String> {
-    state.pending_action.lock().unwrap().take()
+fn env_info() -> system::EnvInfo {
+    system::env_info(EDITION)
 }
 
 #[tauri::command]
-fn hide_pill(window: WebviewWindow) {
-    let _ = window.hide();
+async fn set_dnd(dnd: tauri::State<'_, system::Dnd>, on: bool) -> Result<(), String> {
+    dnd.set(on)
 }
 
 #[tauri::command]
-fn quit(app: AppHandle) {
-    app.exit(0);
+async fn setup_system_shortcuts(app: AppHandle) -> Result<String, String> {
+    let msg = blocking(system::setup_system_shortcuts).await?;
+    // Si el escritorio gestiona los atajos, la app deja de capturarlos para no duplicarlos.
+    let _ = app.global_shortcut().unregister_all();
+    Ok(msg)
 }
+
+#[tauri::command]
+fn set_app_shortcuts(app: AppHandle, enabled: bool) {
+    let _ = app.global_shortcut().unregister_all();
+    if enabled {
+        register_shortcuts(&app);
+    }
+}
+
+#[tauri::command]
+fn set_tracking(tracker: tauri::State<Tracker>, enabled: bool) {
+    tracker.enabled.store(enabled, Ordering::Relaxed);
+}
+
+#[tauri::command]
+fn get_usage(tracker: tauri::State<Tracker>) -> tracker::Usage {
+    tracker.usage.lock().unwrap().clone()
+}
+
+#[tauri::command]
+fn clear_usage(app: AppHandle, tracker: tauri::State<Tracker>) {
+    tracker.usage.lock().unwrap().clear();
+    if let Some(p) = data::data_file(&app, "usage.json") {
+        let _ = fs::remove_file(p);
+    }
+}
+
+/// La interfaz informa de su zona horaria para que Rust use el mismo "hoy".
+#[tauri::command]
+fn set_utc_offset(minutes: i64) {
+    tracker::UTC_OFFSET_MIN.store(minutes, Ordering::Relaxed);
+}
+
+/* ---------------- IA ---------------- */
+
+#[tauri::command]
+fn ai_status() -> Value {
+    ai::status()
+}
+
+#[tauri::command]
+async fn ai_models(config: ai::ClientConfig) -> Result<Vec<String>, String> {
+    blocking(move || ai::list_models(&config)).await
+}
+
+#[tauri::command]
+async fn ai_chat(config: ai::ClientConfig, messages: Value, json: bool) -> Result<String, String> {
+    blocking(move || ai::chat(&config, &messages, json)).await
+}
+
+/* ---------------- Integraciones ---------------- */
+
+#[tauri::command]
+async fn fetch_calendar(url: String) -> Result<String, String> {
+    blocking(move || integrations::fetch_calendar(&url)).await
+}
+
+#[tauri::command]
+async fn todoist_today(token: String) -> Result<Vec<integrations::RemoteTask>, String> {
+    blocking(move || integrations::todoist_today(&token)).await
+}
+
+#[tauri::command]
+async fn todoist_close(token: String, id: String) -> Result<(), String> {
+    blocking(move || integrations::todoist_close(&token, &id)).await
+}
+
+#[tauri::command]
+async fn notion_append(token: String, page: String, title: String, text: String) -> Result<(), String> {
+    blocking(move || integrations::notion_append(&token, &page, &title, &text)).await
+}
+
+/* ---------------- Licencia ---------------- */
+
+#[cfg(feature = "licensing")]
+fn license_path(app: &AppHandle) -> Option<std::path::PathBuf> {
+    data::data_file(app, "license.json")
+}
+
+#[tauri::command]
+fn license_status(app: AppHandle) -> Value {
+    #[cfg(feature = "licensing")]
+    {
+        let stored = license_path(&app)
+            .and_then(|p| fs::read_to_string(p).ok())
+            .and_then(|s| serde_json::from_str::<Value>(&s).ok());
+        let pro = stored.as_ref().and_then(|v| v["valid"].as_bool()).unwrap_or(false);
+        serde_json::json!({ "edition": EDITION, "pro": pro, "key": stored.and_then(|v| v["key"].as_str().map(|k| format!("…{}", &k[k.len().saturating_sub(4)..]))) })
+    }
+    #[cfg(not(feature = "licensing"))]
+    {
+        let _ = app;
+        serde_json::json!({ "edition": EDITION, "pro": true })
+    }
+}
+
+#[tauri::command]
+async fn license_activate(app: AppHandle, key: String) -> Result<(), String> {
+    #[cfg(feature = "licensing")]
+    {
+        let instance = format!("focuspill-{}", std::env::var("HOSTNAME").or_else(|_| std::env::var("COMPUTERNAME")).unwrap_or_else(|_| "pc".into()));
+        let k = key.clone();
+        let id = blocking(move || integrations::license::activate(&k, &instance)).await?;
+        let path = license_path(&app).ok_or("sin carpeta de datos")?;
+        let json = serde_json::json!({ "key": key.trim(), "instance_id": id, "valid": true }).to_string();
+        data::write_private(&path, &json).map_err(|e| e.to_string())
+    }
+    #[cfg(not(feature = "licensing"))]
+    {
+        let _ = (app, key);
+        Ok(())
+    }
+}
+
+#[cfg(feature = "licensing")]
+fn revalidate_license(app: AppHandle) {
+    thread::spawn(move || {
+        let Some(path) = license_path(&app) else { return };
+        let Some(mut v) = fs::read_to_string(&path).ok().and_then(|s| serde_json::from_str::<Value>(&s).ok()) else { return };
+        let (Some(key), Some(id)) = (v["key"].as_str().map(String::from), v["instance_id"].as_str().map(String::from)) else { return };
+        // Sin conexión mantenemos el último resultado conocido.
+        if let Ok(valid) = integrations::license::validate(&key, &id) {
+            v["valid"] = Value::Bool(valid);
+            let _ = data::write_private(&path, &v.to_string());
+        }
+    });
+}
+
+/* ---------------- Actualizaciones ---------------- */
+
+#[tauri::command]
+async fn check_update(app: AppHandle) -> Result<Option<Value>, String> {
+    let updater = app.updater().map_err(|e| e.to_string())?;
+    match updater.check().await.map_err(|e| e.to_string())? {
+        Some(u) => Ok(Some(serde_json::json!({ "version": u.version, "notes": u.body }))),
+        None => Ok(None),
+    }
+}
+
+#[tauri::command]
+async fn install_update(app: AppHandle) -> Result<(), String> {
+    let updater = app.updater().map_err(|e| e.to_string())?;
+    let Some(update) = updater.check().await.map_err(|e| e.to_string())? else { return Ok(()) };
+    update.download_and_install(|_, _| {}, || {}).await.map_err(|e| e.to_string())?;
+    app.restart();
+}
+
+/* ---------------- Arranque ---------------- */
 
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let open = MenuItem::with_id(app, "open", "Abrir panel", true, None::<&str>)?;
     let capture = MenuItem::with_id(app, "capture", "Captura rápida", true, None::<&str>)?;
     let focus = MenuItem::with_id(app, "toggle-focus", "Iniciar / pausar foco", true, None::<&str>)?;
+    let plan = MenuItem::with_id(app, "ai-plan", "Planificar mi día (IA)", true, None::<&str>)?;
     let visibility = MenuItem::with_id(app, "toggle-visible", "Mostrar / ocultar píldora", true, None::<&str>)?;
     let reset = MenuItem::with_id(app, "reset-position", "Volver arriba al centro", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Salir", true, None::<&str>)?;
     let sep = PredefinedMenuItem::separator(app)?;
-    let menu = Menu::with_items(app, &[&open, &capture, &focus, &sep, &visibility, &reset, &sep, &quit])?;
+    let sep2 = PredefinedMenuItem::separator(app)?;
+    let menu = Menu::with_items(app, &[&open, &capture, &focus, &plan, &sep, &visibility, &reset, &sep2, &quit])?;
 
     let mut tray = TrayIconBuilder::with_id("focuspill")
         .menu(&menu)
@@ -271,11 +399,12 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
             }
             "reset-position" => {
                 if let Some(w) = show_main(app) {
-                    let state = app.state::<AppState>();
-                    *state.anchor.lock().unwrap() = Some(default_anchor(&w));
+                    let state = app.state::<WinState>();
+                    let monitor = state.monitor.lock().unwrap().clone();
+                    *state.anchor.lock().unwrap() = Some(window::default_anchor(&w, monitor.as_deref()));
                     state.anchor_dirty.store(true, Ordering::Relaxed);
-                    place(&w, &state, Mode::Pill);
                     let _ = app.emit("pill-action", "collapse");
+                    window::place(&w, &state, Mode::Pill);
                 }
             }
             other => dispatch_action(app, other),
@@ -287,115 +416,140 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
+fn shortcuts() -> [(Shortcut, &'static str); 3] {
+    [
+        (Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::Space), "capture"),
+        (Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyF), "toggle-focus"),
+        (Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyP), "toggle-panel"),
+    ]
+}
+
 fn register_shortcuts(app: &AppHandle) {
-    let shortcuts = [
-        Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::Space),
-        Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyF),
-        Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyP),
-    ];
-    for sc in shortcuts {
+    for (sc, _) in shortcuts() {
         if let Err(e) = app.global_shortcut().register(sc) {
             eprintln!("focuspill: no se pudo registrar el atajo {sc:?}: {e}");
         }
     }
 }
 
-fn spawn_geometry_saver(app: AppHandle) {
-    thread::spawn(move || loop {
-        thread::sleep(Duration::from_millis(1500));
-        let state = app.state::<AppState>();
-        if !state.anchor_dirty.swap(false, Ordering::Relaxed) {
-            continue;
-        }
-        let anchor = *state.anchor.lock().unwrap();
-        if let (Some((x, y)), Some(path)) = (anchor, data_file(&app, "geometry.json")) {
-            if let Ok(json) = serde_json::to_string(&Geometry { x, y }) {
-                let _ = write_atomic(&path, &json);
+/// Guarda posición y uso de apps en segundo plano, sin bloquear la interfaz.
+fn spawn_saver(app: AppHandle) {
+    thread::spawn(move || {
+        let mut ticks = 0u32;
+        loop {
+            thread::sleep(Duration::from_millis(1500));
+            ticks += 1;
+            let state = app.state::<WinState>();
+            if state.anchor_dirty.swap(false, Ordering::Relaxed) {
+                let anchor = *state.anchor.lock().unwrap();
+                let monitor = state.monitor.lock().unwrap().clone();
+                if let (Some((x, y)), Some(path)) = (anchor, data::data_file(&app, "geometry.json")) {
+                    if let Ok(json) = serde_json::to_string(&Geometry { x, y, monitor }) {
+                        let _ = data::write_private(&path, &json);
+                    }
+                }
+            }
+            if ticks % 40 == 0 {
+                let tracker = app.state::<Tracker>();
+                if tracker.take_dirty() {
+                    let usage = tracker.usage.lock().unwrap().clone();
+                    if let (Ok(json), Some(path)) = (serde_json::to_string(&usage), data::data_file(&app, "usage.json")) {
+                        let _ = data::write_private(&path, &json);
+                    }
+                }
             }
         }
     });
 }
 
 fn main() {
-    prepare_linux_env();
-
-    let capture_sc = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::Space);
-    let focus_sc = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyF);
-    let panel_sc = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyP);
+    window::prepare_linux_env();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
-            let action = action_from_args(&argv).unwrap_or("open");
-            dispatch_action(app, action);
+            dispatch_action(app, action_from_args(&argv).unwrap_or("open"));
         }))
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
-                .with_handler(move |app, shortcut, event| {
+                .with_handler(|app, shortcut, event| {
                     if event.state() != ShortcutState::Pressed {
                         return;
                     }
-                    if shortcut == &capture_sc {
-                        dispatch_action(app, "capture");
-                    } else if shortcut == &focus_sc {
-                        dispatch_action(app, "toggle-focus");
-                    } else if shortcut == &panel_sc {
-                        dispatch_action(app, "toggle-panel");
+                    if let Some((_, action)) = shortcuts().into_iter().find(|(sc, _)| sc == shortcut) {
+                        dispatch_action(app, action);
                     }
                 })
                 .build(),
         )
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
         .plugin(tauri_plugin_notification::init())
-        .manage(AppState {
-            mode: Mutex::new(Mode::Pill),
-            anchor: Mutex::new(None),
-            anchor_dirty: AtomicBool::new(false),
-            last_place: Mutex::new(Instant::now()),
-            pending_action: Mutex::new(None),
-        })
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(WinState::new())
+        .manage(Pending { action: Mutex::new(None), ready: std::sync::atomic::AtomicBool::new(false) })
+        .manage(system::Dnd::new())
         .invoke_handler(tauri::generate_handler![
             load_state,
             save_state,
+            list_backups,
+            read_backup,
+            export_data,
+            import_data,
             set_mode,
+            set_input_region,
             start_drag,
             reset_position,
+            list_monitors,
+            set_monitor,
+            hide_pill,
+            quit,
+            take_pending_action,
+            log_js,
             notify,
             get_autostart,
             set_autostart,
-            take_pending_action,
-            hide_pill,
-            quit
+            env_info,
+            set_dnd,
+            setup_system_shortcuts,
+            set_app_shortcuts,
+            set_tracking,
+            get_usage,
+            clear_usage,
+            set_utc_offset,
+            ai_status,
+            ai_models,
+            ai_chat,
+            fetch_calendar,
+            todoist_today,
+            todoist_close,
+            notion_append,
+            license_status,
+            license_activate,
+            check_update,
+            install_update
         ])
         .setup(|app| {
             let handle = app.handle().clone();
-            let state = app.state::<AppState>();
 
             let args: Vec<String> = std::env::args().collect();
-            *state.pending_action.lock().unwrap() = action_from_args(&args).map(String::from);
+            *app.state::<Pending>().action.lock().unwrap() = action_from_args(&args).map(String::from);
 
-            if let Some(geo) = data_file(&handle, "geometry.json")
+            let usage = data::data_file(&handle, "usage.json")
+                .and_then(|p| fs::read_to_string(p).ok())
+                .and_then(|s| serde_json::from_str(&s).ok())
+                .unwrap_or_default();
+            app.manage(Tracker::new(usage));
+
+            let window = app.get_webview_window("main").expect("ventana principal");
+            let state = app.state::<WinState>();
+            if let Some(geo) = data::data_file(&handle, "geometry.json")
                 .and_then(|p| fs::read_to_string(p).ok())
                 .and_then(|s| serde_json::from_str::<Geometry>(&s).ok())
             {
-                *state.anchor.lock().unwrap() = Some((geo.x, geo.y));
-            }
-
-            let window = app.get_webview_window("main").expect("ventana principal");
-            // Si la posición guardada ya no cae en ningún monitor, volvemos al centro.
-            let saved = *state.anchor.lock().unwrap();
-            if let Some((x, y)) = saved {
-                let on_screen = window
-                    .available_monitors()
-                    .map(|ms| {
-                        ms.iter().any(|m| {
-                            let p = m.position();
-                            let s = m.size();
-                            x >= p.x - 50 && x < p.x + s.width as i32 && y >= p.y - 50 && y < p.y + s.height as i32
-                        })
-                    })
-                    .unwrap_or(false);
-                if !on_screen {
-                    *state.anchor.lock().unwrap() = None;
+                *state.monitor.lock().unwrap() = geo.monitor;
+                // Si la posición guardada ya no cae en ningún monitor, volvemos arriba al centro.
+                if window::anchor_on_screen(&window, (geo.x, geo.y)) {
+                    *state.anchor.lock().unwrap() = Some((geo.x, geo.y));
                 }
             }
 
@@ -410,19 +564,22 @@ fn main() {
                 }
             }
 
-            place(&window, &state, Mode::Pill);
+            window::place(&window, &state, Mode::Pill);
             show_main(&handle);
 
             if let Err(e) = build_tray(&handle) {
                 eprintln!("focuspill: bandeja no disponible: {e}");
             }
             register_shortcuts(&handle);
-            spawn_geometry_saver(handle);
+            spawn_saver(handle.clone());
+            tracker::spawn(handle.clone());
+            #[cfg(feature = "licensing")]
+            revalidate_license(handle);
             Ok(())
         })
         .on_window_event(|window, event| match event {
             WindowEvent::Moved(pos) => {
-                let state = window.state::<AppState>();
+                let state = window.state::<WinState>();
                 let settled = state.last_place.lock().unwrap().elapsed() > Duration::from_millis(400);
                 if settled && *state.mode.lock().unwrap() == Mode::Pill {
                     *state.anchor.lock().unwrap() = Some((pos.x, pos.y));
@@ -440,4 +597,19 @@ fn main() {
         })
         .run(tauri::generate_context!())
         .expect("error al iniciar FocusPill");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn maps_cli_arguments_to_actions() {
+        let args = |a: &[&str]| a.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert_eq!(action_from_args(&args(&["focuspill", "--capture"])), Some("capture"));
+        assert_eq!(action_from_args(&args(&["focuspill", "-f"])), Some("toggle-focus"));
+        assert_eq!(action_from_args(&args(&["focuspill", "--toggle-panel"])), Some("toggle-panel"));
+        assert_eq!(action_from_args(&args(&["focuspill", "--plan"])), Some("ai-plan"));
+        assert_eq!(action_from_args(&args(&["focuspill"])), None);
+    }
 }

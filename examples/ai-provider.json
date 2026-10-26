@@ -1,0 +1,8 @@
+{
+  "name": "MiDistro AI (simulada)",
+  "api": "openai-chat",
+  "endpoint": "unix://${XDG_RUNTIME_DIR}/midistro/ai.sock",
+  "model": "mock-distro-1",
+  "timeout_seconds": 180,
+  "supports_json": true
+}

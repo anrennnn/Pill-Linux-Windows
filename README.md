@@ -1,57 +1,84 @@
 # FocusPill
 
-Píldora flotante de productividad para Linux. Vive arriba en el centro de la pantalla, en todos tus escritorios virtuales, y te muestra en qué estás trabajando y cuánto te queda de foco.
+Píldora flotante de productividad para **Linux y Windows**. Vive arriba en el centro de la pantalla, en todos tus escritorios virtuales, y te dice en qué estás trabajando, cuánto te queda de foco y qué viene en tu agenda.
 
-Inspirada en Orby (orby.win), pero centrada solo en productividad: menos herramientas y mejor hechas.
+Su IA es la de **tu distro** o un **modelo local** que elijas tú: ningún dato sale de tu equipo salvo hacia los servicios que conectes.
 
 ![Píldora y captura rápida](docs/pildora.png)
 
-![Panel: Hoy, Foco y Notas](docs/panel.png)
+![Panel: Hoy, Foco e IA](docs/panel.png)
 
-**Descarga:** [`releases/FocusPill_0.1.0_amd64.deb`](releases/FocusPill_0.1.0_amd64.deb) (Linux, 2,1 MB).
+![Progreso y ajustes de IA](docs/progreso-ajustes.png)
 
 ## Qué hace
 
 | Modo | Cómo se abre | Para qué |
 |---|---|---|
-| **Píldora** | Siempre visible | Tarea actual, temporizador, progreso y botón ▶/‖ |
+| **Píldora** | Siempre visible | Tarea actual, temporizador, próxima reunión y botón ▶/‖ |
 | **Captura** | `Ctrl+Alt+Espacio` o clic derecho en la píldora | Apuntar algo sin salir de lo que haces |
-| **Panel** | Clic en la píldora o `Ctrl+Alt+P` | Hoy, Foco, Notas, Progreso y Ajustes |
+| **Panel** | Clic en la píldora o `Ctrl+Alt+P` | Hoy, Foco, Notas, IA, Progreso y Ajustes |
 
-- **Hoy:** un máximo de 3 prioridades, más una bandeja para todo lo demás. Edita con doble clic y ▶ empieza el foco en esa tarea.
-- **Foco:** Pomodoro ligado a una tarea, con descansos cortos y largos, presets (25/5, 50/10, 90/15, 15/3), notificación y sonido.
-- **Captura rápida:**
-  - `!texto` → Hoy
-  - `n: texto` → Nota
-  - cualquier otro texto → Bandeja
-- **Notas:** apuntes rápidos que se pueden convertir en tarea.
-- **Progreso:** foco de hoy, bloques, tareas hechas, racha de días, gráfico de 7 días y en qué tareas se fue tu tiempo.
-- **Ajustes:**
-  - Tema oscuro, claro o del sistema, y 8 colores de acento.
-  - Duraciones del Pomodoro y meta diaria.
-  - Inicio con la sesión.
+**Hoy**
+- Agenda del día con tus calendarios (Google, Outlook, Nextcloud, Proton…) y tus bloques de tiempo.
+- Un máximo de 3 prioridades, más bandeja y tareas programadas.
+- Subtareas, tareas que se repiten (diaria, laborables, semanal o mensual), arrastrar para ordenar y deshacer al borrar.
+- Programar una tarea a una hora: al llegar, el foco empieza solo.
+- Importar de Todoist; al completar una tarea en FocusPill, también se completa allí.
 
-Los datos se guardan en local, en `~/.local/share/com.focuspill.app/`.
+**Foco**
+- Pomodoro ligado a una tarea, con descansos cortos y largos y presets (25/5, 50/10, 90/15, 15/3).
+- «No molestar» automático en GNOME, KDE, XFCE, Cinnamon y MATE.
+- Sonido ambiente generado (lluvia, ruido marrón o rosa, olas).
+- Aviso si te distraes: si pasas demasiado tiempo en Discord, Steam o similares durante el foco, la píldora te lo recuerda.
+
+**IA** (de tu distro o local)
+- **Planificar mi día:** propone bloques de foco alrededor de tus reuniones y los añade a tu agenda.
+- **Cierre del día:** resumen de lo hecho, lo pendiente y qué mejorar. Se puede guardar en Notas o enviar a Notion.
+- **Clasificar capturas:** decide si lo que apuntas es una tarea, una nota o algo para hoy.
+- **Preguntar:** dudas sobre tu día con el contexto de tus tareas.
+
+**Progreso**
+- Foco de hoy, bloques completados, racha y gráfico de 7 días.
+- **Tiempo real por aplicación:** productivo, neutro o distracción. Se cambia la categoría con un clic. Solo se registra el nombre de la app, nunca títulos ni contenido.
+
+**Ajustes**
+- Tema y color de acento.
+- Monitor de la píldora.
+- Atajos del sistema con un clic (GNOME, Cinnamon, XFCE).
+- Exportar e importar datos, y copias diarias automáticas.
+- Actualizaciones automáticas.
 
 ## Instalar
 
-```bash
-sudo apt install ./releases/FocusPill_0.1.0_amd64.deb
-```
+Descarga la última versión desde **[Releases](https://github.com/anrennnn/pill-linux-windows/releases)**:
 
-Funciona en Ubuntu 22.04 o posterior, Debian 12 o posterior, Linux Mint 21 o posterior, Pop!_OS y elementary, en cualquier distro con `libwebkit2gtk-4.1-0`. Apt instala las dependencias solo.
+| Sistema | Archivo |
+|---|---|
+| Ubuntu, Debian, Mint, Pop!_OS, elementary | `.deb` → `sudo apt install ./FocusPill_*.deb` |
+| Fedora, openSUSE | `.rpm` → `sudo dnf install ./FocusPill-*.rpm` |
+| Cualquier distro | `.AppImage` → `chmod +x FocusPill_*.AppImage && ./FocusPill_*.AppImage` |
+| Windows 10/11 | `.msi` o `-setup.exe` |
+
+En `releases/` del repositorio también están el `.deb` y el `.rpm` de la v0.2.0 para descargarlos ya.
+
+## IA: de tu distro o local
+
+En **Ajustes → IA** eliges:
+
+- **Mi distro:** si tu distro instala `/etc/xdg/focuspill/ai-provider.json`, FocusPill la detecta y la activa sola. El contrato para desarrolladores de distros está en **[docs/DISTRO-AI.md](docs/DISTRO-AI.md)**.
+- **Local o servidor:** cualquier servidor compatible con la API de OpenAI. Hay accesos directos para Ollama, LM Studio, llama.cpp y Jan, y admite `http://` y `unix://`.
+- **Ninguna:** todo lo demás funciona igual.
+
+Para probar sin un modelo: `python3 tools/mock-ai-server.py` simula una IA que cumple el contrato.
 
 ## Escritorios
 
-- **Todos los escritorios virtuales:** la ventana es *sticky*, siempre encima y no aparece en la barra de tareas ni en Alt+Tab.
-- **GNOME, KDE Plasma, XFCE, Cinnamon, MATE y Budgie:** la ventana usa las propiedades estándar EWMH (`_NET_WM_STATE_ABOVE`, `_NET_WM_DESKTOP = todos`), que respetan todos ellos. Verificado en X11 con Openbox; queda pendiente probarlo en cada escritorio real.
-- **Wayland:** la app arranca por XWayland de forma automática, porque Wayland no permite a las apps fijar su posición ni quedarse encima. Si quieres probar Wayland nativo: `FOCUSPILL_NATIVE_WAYLAND=1 focuspill`.
-- **Atajos en Wayland:** los atajos globales solo llegan cuando una ventana X11 tiene el foco. Para que funcionen siempre, crea atajos en la configuración de teclado de tu escritorio con estos comandos:
-  - `focuspill --capture`
-  - `focuspill --toggle-focus`
-  - `focuspill --open`
-- **Bandeja del sistema:** en GNOME necesitas la extensión *AppIndicator* para ver el icono. La app funciona igual sin él.
-- **Transparencia:** necesita un compositor, que tienen todos los escritorios modernos. Sin compositor se ve un rectángulo oscuro detrás de la píldora.
+- **Todos los escritorios virtuales:** la ventana está siempre encima y no aparece en la barra de tareas ni en Alt+Tab.
+- **Clics:** solo la píldora los recibe; el margen transparente deja pasar los clics a lo que haya debajo.
+- **Wayland:** la app usa XWayland, porque Wayland no deja a las apps fijar su posición ni quedarse encima. Para probar Wayland nativo: `FOCUSPILL_NATIVE_WAYLAND=1 focuspill`.
+- **Atajos en Wayland:** usa **Ajustes → Pantalla y atajos → Crear atajos** (GNOME, Cinnamon o XFCE). En KDE se añaden a mano con los comandos de abajo.
+- **Registro de apps:** funciona en X11, XWayland y Windows. Con apps nativas de Wayland no se puede saber cuál está en primer plano.
+- **Bandeja del sistema:** en GNOME hace falta la extensión AppIndicator.
 
 ## Línea de comandos
 
@@ -59,28 +86,39 @@ Funciona en Ubuntu 22.04 o posterior, Debian 12 o posterior, Linux Mint 21 o pos
 focuspill                 # arranca (si ya está abierta, abre el panel)
 focuspill --capture       # captura rápida
 focuspill --toggle-focus  # iniciar / pausar foco
-focuspill --open          # abrir panel
+focuspill --toggle-panel  # abrir / plegar panel
+focuspill --plan          # planificar el día con IA
 ```
 
-Estas acciones también aparecen al hacer clic derecho en el icono del menú de aplicaciones.
+## Datos y privacidad
 
-## Compilar
+- Todo se guarda en local: `~/.local/share/com.focuspill.app/` en Linux y `%APPDATA%\com.focuspill.app\` en Windows.
+- Los archivos son privados (`0600`) porque guardan los tokens de las integraciones.
+- Se hace una copia diaria automática y se conservan 14.
+- Los servicios externos solo se contactan si los configuras: calendarios ICS, Todoist, Notion, licencias y actualizaciones.
+
+## Desarrollo
 
 Requisitos: Rust estable, Node 20 o posterior, y en Debian o Ubuntu:
 
 ```bash
 sudo apt install libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev build-essential
 npm install
-npm run build            # → src-tauri/target/release/bundle/deb/
-npm run dev              # modo desarrollo
+npm test               # tests de la interfaz (lógica, calendario, IA)
+npm run test:rust      # tests de Rust (incluye IA por socket Unix)
+npm run dev            # modo desarrollo
+npm run build:linux    # .deb, .rpm y AppImage
 ```
 
-Para previsualizar la interfaz en el navegador, abre `ui/index.html?mode=panel&tab=focus`. Sin Tauri usa `localStorage`.
-
-## Estructura
+Para previsualizar la interfaz en el navegador, sirve `ui/` con `python3 -m http.server` y abre `index.html?mode=panel&tab=ai&plan=1`.
 
 ```
-ui/            interfaz (HTML + CSS + JS, sin dependencias)
-src-tauri/     backend Rust: ventana, posición, bandeja, atajos, notificaciones, autoarranque
-assets/        icono fuente
+ui/js/core.js          lógica pura: fechas, Pomodoro, recurrencias, calendario ICS
+ui/js/ai-prompts.js    prompts y validación de respuestas de IA
+ui/js/actions.js       tareas, foco, agenda, IA e integraciones
+ui/js/views/           vistas del panel
+src-tauri/src/         ventana, IA, HTTP/unix, sistema, registro de apps, datos
+docs/                  DISTRO-AI.md, RELEASING.md, LICENSING.md
 ```
+
+Publicar una versión: ver **[docs/RELEASING.md](docs/RELEASING.md)**.

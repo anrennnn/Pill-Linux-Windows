@@ -27,7 +27,7 @@
     <!-- Panel expandido -->
     <div class="panel" id="panel">
       <header class="panel-head">
-        <div class="status" id="headStatus">
+        <div class="status">
           <span class="dot" id="headDot"></span>
           <span class="status-label" id="headLabel"></span>
           <span class="status-time" id="headTime"></span>
@@ -39,6 +39,7 @@
         <button data-tab="today">Hoy</button>
         <button data-tab="focus">Foco</button>
         <button data-tab="notes">Notas</button>
+        <button data-tab="ai" class="tab-ai">IA</button>
         <button data-tab="stats">Progreso</button>
         <button data-tab="settings" aria-label="Ajustes" title="Ajustes"></button>
       </nav>
@@ -50,7 +51,7 @@
             <input id="todayInput" placeholder="Añade una prioridad para hoy…" spellcheck="false" />
             <button class="add-btn" aria-label="Añadir"></button>
           </form>
-
+          <div id="agendaBox"></div>
           <div class="goal" id="goal"></div>
 
           <div class="section-title"><span>Prioridades</span><span id="todayCount" class="muted"></span></div>
@@ -61,8 +62,16 @@
             <ul class="list compact" id="doneList"></ul>
           </details>
 
-          <div class="section-title"><span>Bandeja</span><span id="inboxCount" class="muted"></span></div>
+          <div class="section-title">
+            <span>Bandeja <span id="inboxCount" class="muted"></span></span>
+            <button class="link-btn" id="todoistBtn" hidden title="Importar tareas de hoy desde Todoist"></button>
+          </div>
           <ul class="list" id="inboxList"></ul>
+
+          <details class="fold" id="schedFold">
+            <summary><span>Programadas</span><span id="schedCount" class="muted"></span></summary>
+            <ul class="list compact" id="schedList"></ul>
+          </details>
         </section>
 
         <!-- FOCO -->
@@ -96,6 +105,15 @@
             <button data-preset="90,15">90 / 15</button>
             <button data-preset="15,3">15 / 3</button>
           </div>
+
+          <div class="set-group">
+            <div class="set-title">Ambiente</div>
+            <div class="presets left" id="ambient"></div>
+            <div class="slider-row"><span class="muted">Volumen</span><input type="range" id="ambientVol" min="0" max="1" step="0.05" /></div>
+            <label class="toggle"><input type="checkbox" id="ambientWithFocus" /><span>Sonar solo durante el foco</span></label>
+            <label class="toggle" id="dndRow"><input type="checkbox" id="dndToggle" /><span>«No molestar» durante el foco</span></label>
+            <label class="toggle"><input type="checkbox" id="distractToggle" /><span>Avisarme si me distraigo</span></label>
+          </div>
         </section>
 
         <!-- NOTAS -->
@@ -107,68 +125,46 @@
           <ul class="notes" id="noteList"></ul>
         </section>
 
+        <!-- IA -->
+        <section class="view" data-view="ai">
+          <div id="aiConnect"></div>
+          <div id="aiActions" class="ai-actions">
+            <button class="ai-btn" id="planBtn"><b>Planificar mi día</b><small>Bloques de foco alrededor de tus reuniones</small></button>
+            <button class="ai-btn" id="closeBtn"><b>Cierre del día</b><small>Qué hiciste, qué queda y qué mejorar</small></button>
+          </div>
+          <p class="hint provider" id="aiProviderLabel"></p>
+          <div id="aiPlan"></div>
+          <div id="aiClose"></div>
+          <div id="aiChat"></div>
+          <form id="askForm" class="add-row ask" autocomplete="off">
+            <input id="askInput" placeholder="Pregunta algo sobre tu día…" spellcheck="false" />
+            <button class="add-btn" aria-label="Enviar">➤</button>
+          </form>
+        </section>
+
         <!-- PROGRESO -->
         <section class="view" data-view="stats">
           <div class="kpis" id="kpis"></div>
           <div class="section-title"><span>Minutos de foco · 7 días</span></div>
           <div class="bars" id="bars"></div>
+          <div class="section-title">
+            <span>Tiempo real por aplicación</span>
+            <div class="seg mini" id="rangeSeg"><button data-range="today">Hoy</button><button data-range="week">7 días</button></div>
+          </div>
+          <div id="appsBox"></div>
           <div class="section-title"><span>Dónde se fue tu foco esta semana</span></div>
           <ul class="list compact" id="topTasks"></ul>
         </section>
 
         <!-- AJUSTES -->
         <section class="view" data-view="settings">
-          <div class="set-group">
-            <div class="set-title">Apariencia</div>
-            <div class="seg" id="themeSeg">
-              <button data-theme="dark">Oscuro</button>
-              <button data-theme="light">Claro</button>
-              <button data-theme="system">Sistema</button>
-            </div>
-            <div class="swatches" id="swatches"></div>
-          </div>
-
-          <div class="set-group">
-            <div class="set-title">Pomodoro</div>
-            <div class="num-grid">
-              <label>Foco (min)<input type="number" min="1" max="180" data-num="focusMin" /></label>
-              <label>Descanso<input type="number" min="1" max="60" data-num="breakMin" /></label>
-              <label>Descanso largo<input type="number" min="1" max="90" data-num="longBreakMin" /></label>
-              <label>Largo cada<input type="number" min="2" max="12" data-num="longEvery" /></label>
-              <label>Meta diaria (min)<input type="number" min="10" max="720" data-num="dailyGoalMin" /></label>
-            </div>
-          </div>
-
-          <div class="set-group">
-            <div class="set-title">Comportamiento</div>
-            <label class="toggle"><input type="checkbox" data-bool="autoBreak" /><span>Empezar descansos automáticamente</span></label>
-            <label class="toggle"><input type="checkbox" data-bool="autoFocus" /><span>Empezar foco tras el descanso</span></label>
-            <label class="toggle"><input type="checkbox" data-bool="sound" /><span>Sonido al terminar</span></label>
-            <label class="toggle"><input type="checkbox" data-bool="collapseOnBlur" /><span>Plegar al hacer clic fuera</span></label>
-            <label class="toggle"><input type="checkbox" id="autostart" /><span>Abrir al iniciar sesión</span></label>
-          </div>
-
-          <div class="set-group">
-            <div class="set-title">Atajos</div>
-            <dl class="keys">
-              <dt><kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>Espacio</kbd></dt><dd>Captura rápida</dd>
-              <dt><kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>F</kbd></dt><dd>Iniciar / pausar foco</dd>
-              <dt><kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>P</kbd></dt><dd>Abrir / plegar panel</dd>
-            </dl>
-            <p class="hint">¿En Wayland no responden? Crea un atajo en la configuración de tu escritorio con el comando <code>focuspill --capture</code> (o <code>--toggle-focus</code>, <code>--open</code>).</p>
-          </div>
-
-          <div class="set-actions">
-            <button class="btn ghost small" id="resetPosBtn">Volver arriba al centro</button>
-            <button class="btn ghost small" id="hideBtn">Ocultar píldora</button>
-            <button class="btn danger small" id="quitBtn">Salir</button>
-          </div>
+          <div id="settingsBox"></div>
         </section>
       </div>
+      <div class="toast" id="toast"></div>
     </div>
   </div>
 
-  <div class="toast" id="toast"></div>
-  <script src="app.js"></script>
+  <script type="module" src="js/app.js"></script>
 </body>
 </html>

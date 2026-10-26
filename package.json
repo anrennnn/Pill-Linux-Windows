@@ -1,12 +1,17 @@
 {
   "name": "focuspill",
   "private": true,
-  "version": "0.1.0",
-  "description": "Píldora flotante de productividad para escritorios Linux",
+  "version": "0.2.0",
+  "description": "Píldora flotante de productividad para Linux y Windows",
   "scripts": {
     "tauri": "tauri",
     "dev": "tauri dev",
-    "build": "tauri build --bundles deb"
+    "build": "tauri build",
+    "build:linux": "tauri build --bundles deb,rpm,appimage",
+    "build:windows": "tauri build --bundles msi,nsis",
+    "test": "TZ=Europe/Madrid node --test tests/*.test.mjs",
+    "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
+    "mock-ai": "python3 tools/mock-ai-server.py"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.8.0"
