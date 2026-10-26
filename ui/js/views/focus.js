@@ -3,6 +3,7 @@
 import * as A from "../actions.js";
 import { esc, fmt, phaseMs } from "../core.js";
 import { AMBIENTS, playAmbient, setAmbientVolume, stopAmbient } from "../sounds.js";
+import * as Media from "./media.js";
 import { F, S, commit } from "../store.js";
 import { $, $$, ui } from "../ui.js";
 
@@ -28,6 +29,7 @@ export function renderClock() {
 
 export function render() {
   renderClock();
+  Media.renderCard();
   const sel = $("#focusTask");
   const opts = [...A.todayTasks(), ...A.inboxTasks()];
   const cur = A.currentTask()?.id || "";

@@ -139,6 +139,106 @@ function screenSection() {
   );
 }
 
+function musicSection() {
+  const m = ui.media;
+  const players = m?.players || [];
+  const pinned = state.ui.mediaPinned || "";
+  const select = players.length
+    ? `<label class="field-line">Reproductor<select class="input" data-act-change="media-pin"><option value="">Automático (el que esté sonando)</option>${players
+        .map((p) => `<option value="${esc(p.id)}" ${p.id === pinned ? "selected" : ""}>${esc(p.name)}</option>`)
+        .join("")}</select></label>`
+    : `<p class="hint">Abre Spotify, VLC, tu navegador o cualquier reproductor y aparecerá aquí.</p>`;
+  return group(
+    "Música",
+    `${toggle("media.show", "Mostrar la música en la píldora", "Carátula, título y ecualizador cuando no estás en foco")}
+     ${toggle("media.hover", "Abrir los controles al pasar el ratón")}
+     ${toggle("media.peek", "Asomar la isla al cambiar de canción")}
+     ${select}`
+  );
+}
+
+const REMIND = [[0, "Sin aviso"], [30, "Cada 30 min"], [45, "Cada 45 min"], [60, "Cada hora"], [90, "Cada 90 min"], [120, "Cada 2 h"]];
+
+function habitsSection() {
+  const rows = state.habits
+    .map(
+      (h) => `<div class="edit-row" data-habit="${h.id}">
+        <input class="input emoji" data-habit-field="emoji" value="${esc(h.emoji)}" maxlength="4" aria-label="Emoji" />
+        <input class="input" data-habit-field="name" value="${esc(h.name)}" aria-label="Nombre" />
+        <input class="input num" type="number" min="1" max="50" data-habit-field="target" value="${h.target}" title="Meta diaria" />
+        <select class="input" data-habit-field="remindEvery" title="Recordatorio">${REMIND.map(([v, l]) => `<option value="${v}" ${Number(h.remindEvery) === v ? "selected" : ""}>${l}</option>`).join("")}</select>
+        <button class="act" data-act="habit-del" title="Borrar">${ICONS.x}</button>
+      </div>`
+    )
+    .join("");
+  const hours = S().habitHours;
+  return group(
+    "Hábitos",
+    `<p class="hint">Emoji · nombre · meta diaria · aviso. En Hoy: clic suma 1, clic derecho resta 1.</p>
+     <div class="edit-list">${rows}</div>
+     <div class="row-actions"><button class="btn ghost small" data-act="habit-add">${ICONS.plus} Añadir hábito</button></div>
+     <div class="field-line inline">Avisos entre las
+       <span class="input-row"><input class="input time" type="time" data-set="habitHours.start" value="${esc(hours.start)}" /> y <input class="input time" type="time" data-set="habitHours.end" value="${esc(hours.end)}" /></span>
+     </div>`,
+    "set-habits"
+  );
+}
+
+const PRESETS = [[0, "Sin cambio"], [25, "25 / 5"], [50, "50 / 10"], [90, "90 / 15"], [15, "15 / 3"]];
+const BREAK_FOR = { 25: 5, 50: 10, 90: 15, 15: 3 };
+const AMBIENT_OPTS = [["keep", "Sin cambio"], ["none", "Silencio"], ["rain", "Lluvia"], ["brown", "Ruido marrón"], ["pink", "Ruido rosa"], ["waves", "Olas"]];
+
+function modesSection() {
+  const modes = S().modes;
+  const apps = ui.apps || [];
+  const rows = modes
+    .map((m) => {
+      const appChips = (m.apps || []).map((a) => `<span class="chip-mini app">${esc(a.name)}<button data-act="mode-app-del" data-app="${esc(a.id)}" aria-label="Quitar">${ICONS.x}</button></span>`).join("");
+      return `<div class="mode-edit" data-mode="${m.id}">
+        <div class="edit-row">
+          <input class="input emoji" data-mode-field="emoji" value="${esc(m.emoji || "")}" maxlength="4" aria-label="Emoji" />
+          <input class="input" data-mode-field="name" value="${esc(m.name)}" aria-label="Nombre del modo" />
+          <button class="act" data-act="mode-del" title="Borrar modo">${ICONS.x}</button>
+        </div>
+        <label class="field-line">Webs que abre (una por línea)
+          <textarea class="input area" data-mode-field="urls" rows="2" placeholder="search.google.com/search-console">${esc((m.urls || []).join("\n"))}</textarea>
+        </label>
+        <label class="field-line">Apps que abre
+          <input class="input" list="appsList" data-mode-app placeholder="${ui.apps ? "Escribe para buscar una app…" : "Cargando apps…"}" />
+        </label>
+        <div class="chips-wrap">${appChips}</div>
+        <div class="edit-grid">
+          <label>Foco<select class="input" data-mode-field="focusMin">${PRESETS.map(([v, l]) => `<option value="${v}" ${Number(m.focusMin || 0) === v ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+          <label>Ambiente<select class="input" data-mode-field="ambient">${AMBIENT_OPTS.map(([v, l]) => `<option value="${v}" ${(m.ambient || "keep") === v ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+        </div>
+        <label class="toggle"><input type="checkbox" data-mode-field="startFocus" ${m.startFocus ? "checked" : ""} /><span>Empezar el foco al activarlo</span></label>
+        ${ui.env?.dnd_supported ? `<label class="toggle"><input type="checkbox" data-mode-field="dnd" ${m.dnd ? "checked" : ""} /><span>«No molestar» durante el foco</span></label>` : ""}
+      </div>`;
+    })
+    .join("");
+  return group(
+    "Modos",
+    `<p class="hint">Un modo abre de una vez tus apps y webs de trabajo, pone tu ambiente y empieza el foco. Aparecen como botones en Hoy.</p>
+     ${rows}
+     <datalist id="appsList">${apps.map((a) => `<option value="${esc(a.name)}"></option>`).join("")}</datalist>
+     <div class="row-actions"><button class="btn ghost small" data-act="mode-add">${ICONS.plus} Nuevo modo</button></div>`,
+    "set-modes"
+  );
+}
+
+function weeklySection() {
+  const w = S().weeklyReview;
+  const days = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+  return group(
+    "Revisión semanal",
+    `${toggle("weeklyReview.enabled", "Recordarme la revisión semanal")}
+     <div class="edit-grid">
+       <label>Día<select class="input" data-set="weeklyReview.day">${days.map((d, i) => `<option value="${i}" ${Number(w.day) === i ? "selected" : ""}>${d}</option>`).join("")}</select></label>
+       <label>Hora<input class="input" type="time" data-set="weeklyReview.time" value="${esc(w.time)}" /></label>
+     </div>`
+  );
+}
+
 function dataSection() {
   const backups = ui.backups.slice(0, 7);
   return group(
@@ -176,6 +276,17 @@ function aboutSection() {
   );
 }
 
+async function loadApps(rerender) {
+  if (ui.apps) return;
+  ui.apps = [];
+  try {
+    ui.apps = (await invoke("list_apps")) || [];
+  } catch (_) {
+    ui.apps = [];
+  }
+  rerender();
+}
+
 export function render() {
   const box = $("#settingsBox");
   // No repintamos mientras se escribe en un campo.
@@ -202,7 +313,11 @@ export function render() {
        ${toggle("distractionAlerts", "Avisar si me distraigo durante el foco")}
        <label class="toggle"><input type="checkbox" id="autostart" ${ui.autostart ? "checked" : ""} /><span>Abrir al iniciar sesión</span></label>`
     ),
+    modesSection(),
+    habitsSection(),
+    musicSection(),
     aiSection(),
+    weeklySection(),
     calendarSection(),
     integrationsSection(),
     screenSection(),
@@ -230,9 +345,50 @@ async function testAI(rerender) {
   rerender();
 }
 
+const findMode = (el) => S().modes.find((m) => m.id === el.closest("[data-mode]")?.dataset.mode);
+const findHabit = (el) => state.habits.find((h) => h.id === el.closest("[data-habit]")?.dataset.habit);
+
 export function bind(root, { rerender, applyTheme, collapse }) {
+  root.addEventListener("focusin", (e) => {
+    if (e.target.closest("[data-mode-app]")) loadApps(() => {});
+  });
   root.addEventListener("change", async (e) => {
     const el = e.target;
+    if (el.dataset.habitField) {
+      const h = findHabit(el);
+      if (!h) return;
+      const f = el.dataset.habitField;
+      h[f] = f === "target" ? Math.max(1, Math.min(50, Math.round(Number(el.value) || 1))) : f === "remindEvery" ? Number(el.value) : el.value.trim() || h[f];
+      return commit({ render: el.tagName === "SELECT" });
+    }
+    if (el.dataset.modeField) {
+      const m = findMode(el);
+      if (!m) return;
+      const f = el.dataset.modeField;
+      if (el.type === "checkbox") m[f] = el.checked;
+      else if (f === "urls") m.urls = el.value.split("\n").map((u) => u.trim()).filter(Boolean);
+      else if (f === "focusMin") Object.assign(m, { focusMin: Number(el.value), breakMin: BREAK_FOR[el.value] || 0 });
+      else m[f] = el.value.trim() || m[f];
+      return commit({ render: false });
+    }
+    if (el.matches("[data-mode-app]")) {
+      const m = findMode(el);
+      const app = (ui.apps || []).find((a) => a.name === el.value);
+      if (m && app && !m.apps.some((a) => a.id === app.id)) {
+        m.apps.push({ id: app.id, name: app.name });
+        commit();
+      } else if (m && el.value.trim() && !app) {
+        // Orden escrita a mano (p. ej. "code ~/proyecto").
+        m.apps.push({ id: el.value.trim(), name: el.value.trim() });
+        commit();
+      }
+      el.value = "";
+      return;
+    }
+    if (el.dataset.actChange === "media-pin") {
+      A.mediaPin(el.value || null);
+      return;
+    }
     if (el.dataset.set) {
       let value = el.type === "checkbox" ? el.checked : el.value;
       if (el.type === "number") {
@@ -368,6 +524,26 @@ export function bind(root, { rerender, applyTheme, collapse }) {
       }
       case "install-update":
         return track("install", () => invoke("install_update"), rerender);
+      case "habit-add":
+        A.addHabit();
+        return requestAnimationFrame(() => [...document.querySelectorAll('[data-habit-field="name"]')].pop()?.select());
+      case "habit-del":
+        return A.deleteHabit(btn.closest("[data-habit]").dataset.habit);
+      case "mode-add":
+        A.newMode();
+        loadApps(rerender);
+        return requestAnimationFrame(() => [...document.querySelectorAll('[data-mode-field="name"]')].pop()?.select());
+      case "mode-del": {
+        const m = findMode(btn);
+        if (A.activeMode()?.id === m.id) A.exitMode({ quiet: true });
+        S().modes = S().modes.filter((x) => x !== m);
+        return commit();
+      }
+      case "mode-app-del": {
+        const m = findMode(btn);
+        m.apps = m.apps.filter((a) => a.id !== btn.dataset.app);
+        return commit();
+      }
       case "hide":
         await collapse();
         return setTimeout(() => invoke("hide_pill"), 380);

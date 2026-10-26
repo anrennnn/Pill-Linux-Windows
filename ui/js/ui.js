@@ -20,6 +20,12 @@ export const ui = {
   expanded: new Set(),
   scheduling: null,
   statsRange: "today",
+  media: null,
+  mediaAt: 0,
+  mediaArt: {},
+  mediaPeek: false,
+  apps: null,
+  habitPrompt: null,
 };
 
 let toastTimer = null;

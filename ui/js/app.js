@@ -8,14 +8,16 @@ import { F, S, commit, load, onChange, state } from "./store.js";
 import { $, $$, toast, ui } from "./ui.js";
 import * as Assistant from "./views/assistant.js";
 import * as Focus from "./views/focus.js";
+import * as Media from "./views/media.js";
 import * as Notes from "./views/notes.js";
 import * as Settings from "./views/settings.js";
 import * as Stats from "./views/stats.js";
 import * as Today from "./views/today.js";
 
-const VIEWS = { today: Today, focus: Focus, notes: Notes, ai: Assistant, stats: Stats, settings: Settings };
+// Orden de las pestañas: IA va al final, junto a Ajustes.
+const VIEWS = { today: Today, focus: Focus, notes: Notes, stats: Stats, ai: Assistant, settings: Settings };
 const TABS = Object.keys(VIEWS);
-const SHAPE = { pill: [300, 40, 20], capture: [500, 52, 26], panel: [440, 620, 24] };
+const SHAPE = { pill: [300, 40, 20], capture: [500, 52, 26], media: [460, 104, 30], panel: [440, 620, 24] };
 const area = (m) => SHAPE[m][0] * SHAPE[m][1];
 
 /* ============================================================
@@ -37,6 +39,10 @@ function statusView() {
   }
   const hint = A.agendaHint(now);
   if (hint) return { dot: "info", label: hint.label, meta: hint.meta, live: true };
+  if (S().media.show && Media.mediaPlaying()) {
+    const m = ui.media;
+    return { dot: "", label: m.title || m.name, meta: "", kind: "media" };
+  }
   const doneToday = A.doneToday().filter((t) => t.list === "today").length;
   const total = A.todayTasks().length + doneToday;
   if (task) return { dot: "", label: task.text, meta: total ? `${doneToday}/${total}` : "" };
@@ -46,15 +52,42 @@ function statusView() {
 
 function renderPill() {
   const v = statusView();
+  const isMedia = v.kind === "media";
   $("#pillDot").className = "dot " + v.dot;
+  $("#pillDot").hidden = isMedia;
+  const art = $("#pillArt");
+  art.hidden = !isMedia;
+  if (isMedia) {
+    const src = ui.media.art ? ui.mediaArt[ui.media.art] : null;
+    const html = src ? `<img src="${src}" alt="" draggable="false" />` : ICONS.music;
+    if (art.dataset.src !== (src || "icon")) {
+      art.innerHTML = html;
+      art.dataset.src = src || "icon";
+    }
+  }
+  // Ecualizador: con la música de fondo o como protagonista.
+  const eq = $("#pillEq");
+  eq.hidden = !(S().media.show && Media.mediaPlaying()) || !!v.flash;
+  eq.classList.toggle("main", isMedia);
   $("#pillLabel").textContent = v.label;
   const meta = $("#pillMeta");
   meta.textContent = v.meta;
   meta.classList.toggle("live", !!v.live);
   $("#pill").dataset.flash = v.flash || "";
   const running = F().running;
-  $("#pillPlay").innerHTML = running ? ICONS.pause : ICONS.play;
-  $("#pillPlay").title = running ? "Pausar" : F().phase === "idle" ? "Empezar foco" : "Reanudar";
+  const play = $("#pillPlay");
+  const habit = ui.habitPrompt && ui.habitPrompt.until > Date.now() ? state.habits.find((h) => h.id === ui.habitPrompt.id) : null;
+  play.dataset.target = habit ? "habit" : isMedia ? "media" : "focus";
+  if (habit) {
+    play.textContent = "+1";
+    play.title = `Sumar 1 a ${habit.name}`;
+  } else if (isMedia) {
+    play.innerHTML = ICONS.pause;
+    play.title = "Pausar música";
+  } else {
+    play.innerHTML = running ? ICONS.pause : ICONS.play;
+    play.title = running ? "Pausar" : F().phase === "idle" ? "Empezar foco" : "Reanudar";
+  }
   const prog = $(".pill-progress");
   prog.classList.toggle("on", v.progress != null);
   prog.classList.toggle("break", v.kind === "break");
@@ -67,6 +100,7 @@ function renderPill() {
 
 function renderAll() {
   renderPill();
+  if (ui.mode === "media") Media.renderIsland();
   if (ui.mode !== "panel") return;
   VIEWS[state.ui.tab]?.render();
 }
@@ -152,6 +186,7 @@ function bindPill() {
   const pill = $("#pill");
   let down = null;
   pill.addEventListener("pointerdown", (e) => {
+    clearTimeout(hoverTimer);
     if (e.button !== 0 || e.target.closest("#pillPlay")) return;
     down = { x: e.screenX, y: e.screenY, dragging: false };
   });
@@ -172,8 +207,70 @@ function bindPill() {
   });
   $("#pillPlay").addEventListener("click", (e) => {
     e.stopPropagation();
+    const target = e.currentTarget.dataset.target;
+    if (target === "habit") {
+      A.habitAdd(ui.habitPrompt.id, 1);
+      ui.habitPrompt = null;
+      ui.flash = null;
+      return renderPill();
+    }
+    if (target === "media") return A.mediaControl("play-pause");
     A.toggleFocus();
   });
+  $("#pillEq").addEventListener("click", (e) => {
+    e.stopPropagation();
+    openMedia(false);
+  });
+}
+
+/* Isla de música: se abre al pasar el ratón o al cambiar de canción, como una isla dinámica. */
+let hoverTimer = null;
+let leaveTimer = null;
+let peekTimer = null;
+let hovering = false;
+
+function openMedia(peek) {
+  if (!ui.media || (ui.mode !== "pill" && ui.mode !== "media")) return;
+  ui.mediaPeek = peek;
+  setMode("media");
+}
+
+function bindMedia() {
+  const island = $("#island");
+  $("#pill").addEventListener("pointerenter", () => {
+    if (!S().media.hover || !Media.mediaPlaying() || ui.mode !== "pill") return;
+    clearTimeout(hoverTimer);
+    hoverTimer = setTimeout(() => openMedia(true), 450);
+  });
+  $("#pill").addEventListener("pointerleave", () => clearTimeout(hoverTimer));
+  island.addEventListener("pointerenter", () => {
+    hovering = true;
+    clearTimeout(leaveTimer);
+  });
+  island.addEventListener("pointerleave", () => {
+    hovering = false;
+    if (ui.mode !== "media" || !ui.mediaPeek) return;
+    clearTimeout(leaveTimer);
+    leaveTimer = setTimeout(() => ui.mode === "media" && !hovering && collapse(), 350);
+  });
+  // Clic fuera de los controles: abre el panel en la pestaña Foco, donde está "Ahora suena".
+  $("#mediaView").addEventListener("click", (e) => {
+    if (e.target.closest("[data-media],[data-seek]")) return;
+    openPanel("focus");
+  });
+  Media.bind($("#mediaView"));
+  Media.bind($("#nowPlaying"));
+}
+
+function onMediaEvent(m) {
+  const changed = A.onMedia(m);
+  if (!ui.media && ui.mode === "media") collapse();
+  if (changed && S().media.peek && ui.mode === "pill" && F().phase !== "focus") {
+    openMedia(true);
+    clearTimeout(peekTimer);
+    peekTimer = setTimeout(() => ui.mode === "media" && ui.mediaPeek && !hovering && collapse(), 4500);
+  }
+  renderAll();
 }
 
 function bindCapture() {
@@ -216,6 +313,10 @@ function bindKeys() {
       return;
     }
     if (ui.mode === "panel" && e.altKey && /^[1-6]$/.test(e.key)) setTab(TABS[Number(e.key) - 1]);
+    if (ui.mode === "media" && e.key === " ") {
+      e.preventDefault();
+      A.mediaControl("play-pause");
+    }
   });
 }
 
@@ -277,6 +378,7 @@ async function init() {
   bindPill();
   bindCapture();
   bindPanel();
+  bindMedia();
   bindKeys();
 
   await loadEnvironment();
@@ -290,6 +392,9 @@ async function init() {
     collapse();
   });
   await listen("active-app", (e) => A.onActiveApp(e.payload));
+  await listen("media", (e) => onMediaEvent(e.payload));
+  invoke("media_state").then((m) => m && A.onMedia(m)).catch(() => {});
+  if (state.ui.mediaPinned) invoke("media_pin", { player: state.ui.mediaPinned });
 
   const pending = await invoke("take_pending_action");
   if (pending) handleAction(pending);
@@ -312,6 +417,7 @@ async function init() {
     if (q.get("tab")) setTab(q.get("tab"));
     if (q.get("plan")) await A.planDay();
     if (q.get("close")) await A.closeDay();
+    if (q.get("weekly")) await A.weeklyReview();
   }
 
   // Reloj
@@ -324,14 +430,18 @@ async function init() {
     A.checkDistraction();
     if (++ticks % 20 === 0) {
       A.checkAgenda();
+      A.checkHabits();
+      A.checkWeekly();
       if (dayKey() !== today) {
         today = dayKey();
         A.dailyRollover();
         renderAll();
       }
     }
+    if (ui.habitPrompt && ui.habitPrompt.until <= Date.now()) ui.habitPrompt = null;
     renderPill();
     if (ui.mode === "panel" && state.ui.tab === "focus") Focus.renderClock();
+    if (ui.mode === "media" || (ui.mode === "panel" && state.ui.tab === "focus")) Media.tickProgress();
   }, 250);
 }
 

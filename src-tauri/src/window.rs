@@ -14,6 +14,7 @@ use tauri::{PhysicalPosition, PhysicalSize, WebviewWindow};
 pub enum Mode {
     Pill,
     Capture,
+    Media,
     Panel,
 }
 
@@ -21,6 +22,7 @@ impl Mode {
     pub fn parse(s: &str) -> Mode {
         match s {
             "capture" => Mode::Capture,
+            "media" => Mode::Media,
             "panel" => Mode::Panel,
             _ => Mode::Pill,
         }
@@ -30,6 +32,7 @@ impl Mode {
         match self {
             Mode::Pill => (320.0, 60.0),
             Mode::Capture => (520.0, 72.0),
+            Mode::Media => (480.0, 124.0),
             Mode::Panel => (460.0, 640.0),
         }
     }
@@ -256,6 +259,7 @@ mod tests {
     fn parses_modes() {
         assert_eq!(Mode::parse("panel"), Mode::Panel);
         assert_eq!(Mode::parse("capture"), Mode::Capture);
+        assert_eq!(Mode::parse("media"), Mode::Media);
         assert_eq!(Mode::parse("otra"), Mode::Pill);
     }
 }

@@ -1,6 +1,6 @@
 // Vista "Progreso": foco, racha, últimos 7 días y tiempo real por aplicación.
 
-import { categorize, dayKey, esc, fmtDuration, lastDays, minutesOn, parseDay, streak, usageSummary } from "../core.js";
+import { categorize, dayKey, esc, fmtDuration, habitDone, habitStreak, lastDays, minutesOn, parseDay, streak, usageSummary } from "../core.js";
 import * as A from "../actions.js";
 import { invoke } from "../bridge.js";
 import { S, commit, state } from "../store.js";
@@ -85,6 +85,17 @@ export function render() {
   $("#topTasks").innerHTML = top.length
     ? top.map(([t, m]) => `<li class="item"><div class="row"><span class="txt">${esc(t)}</span><span class="mins">${m} min</span></div></li>`).join("")
     : `<li class="empty">Completa tu primer bloque de foco para ver dónde va tu tiempo.</li>`;
+
+  const days7 = lastDays(7, today);
+  $("#habitStats").innerHTML = state.habits.length
+    ? `<div class="section-title"><span>Hábitos · 7 días</span></div><ul class="habit-stats">${state.habits
+        .map((h) => {
+          const st = habitStreak(h, today);
+          const dots = days7.map((d) => `<i class="${habitDone(h, d) ? "on" : ""}" title="${parseDay(d).toLocaleDateString("es", { weekday: "short", day: "numeric" })}"></i>`).join("");
+          return `<li><span class="hs-name">${esc(h.emoji)} ${esc(h.name)}</span><span class="hs-dots">${dots}</span><span class="hs-streak">${st ? `🔥 ${st}` : ""}</span></li>`;
+        })
+        .join("")}</ul>`
+    : "";
 
   $$("#rangeSeg button").forEach((b) => b.classList.toggle("active", b.dataset.range === ui.statsRange));
   $("#appsBox").innerHTML = appsSection();

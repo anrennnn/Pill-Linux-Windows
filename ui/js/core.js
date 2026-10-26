@@ -91,17 +91,27 @@ export const DEFAULT_SETTINGS = {
   todoist: { token: "" },
   notion: { token: "", page: "" },
   calendars: [],
+  media: { show: true, peek: true, hover: true },
+  habitHours: { start: "09:00", end: "21:00" },
+  weeklyReview: { enabled: true, day: 5, time: "17:00" },
+  modes: [],
 };
 
+export const DEFAULT_HABITS = () => [
+  { id: "agua", name: "Agua", emoji: "💧", target: 8, remindEvery: 60, counts: {}, createdAt: Date.now() },
+];
+
 export const DEFAULT_STATE = () => ({
-  v: 2,
+  v: 3,
   tasks: [],
+  habits: DEFAULT_HABITS(),
+  activeMode: null,
   notes: [],
   sessions: [],
   blocks: [],
   focus: { phase: "idle", running: false, endAt: null, remaining: null, taskId: null, cycle: 0, cycleDay: null },
   calendar: { events: [], fetchedAt: 0, errors: {}, notified: {} },
-  ai: { plan: null, close: null, chat: [] },
+  ai: { plan: null, close: null, weekly: null, chat: [], weeklyNotified: null },
   settings: structuredClone(DEFAULT_SETTINGS),
   ui: { tab: "today", open: {} },
 });
@@ -111,15 +121,18 @@ export function migrate(raw) {
   const base = DEFAULT_STATE();
   if (!raw || typeof raw !== "object") return base;
   const s = { ...base, ...raw };
-  s.v = 2;
+  s.v = 3;
   s.settings = { ...base.settings, ...(raw.settings || {}) };
-  for (const k of ["ambient", "ai", "todoist", "notion"]) s.settings[k] = { ...base.settings[k], ...(raw.settings?.[k] || {}) };
+  for (const k of ["ambient", "ai", "todoist", "notion", "media", "habitHours", "weeklyReview"]) s.settings[k] = { ...base.settings[k], ...(raw.settings?.[k] || {}) };
   s.focus = { ...base.focus, ...(raw.focus || {}) };
   s.calendar = { ...base.calendar, ...(raw.calendar || {}) };
   s.ai = { ...base.ai, ...(raw.ai || {}) };
   s.ui = { ...base.ui, ...(raw.ui || {}) };
   s.tasks = (raw.tasks || []).map((t, i) => ({ sub: [], repeat: null, dueDay: null, order: i, ...t }));
   for (const key of ["notes", "sessions", "blocks"]) s[key] = Array.isArray(raw[key]) ? raw[key] : [];
+  // Quien viene de la v0.2 recibe el hábito de agua; si ya los borró, se respeta.
+  s.habits = Array.isArray(raw.habits) ? raw.habits.map((h) => ({ counts: {}, remindEvery: 0, target: 1, ...h })) : DEFAULT_HABITS();
+  if (!Array.isArray(s.settings.modes)) s.settings.modes = [];
   return s;
 }
 
@@ -570,4 +583,83 @@ export function agendaFor(day, events, blocks, tasks) {
     items.push({ kind: "block", id: b.id, title: task ? task.text : b.title, taskId: b.taskId, start, end: start + b.minutes * 60000, done: task?.done });
   }
   return items.sort((a, b) => (b.allDay ? 1 : 0) - (a.allDay ? 1 : 0) || a.start - b.start);
+}
+
+/* ============================================================
+   Hábitos
+   ============================================================ */
+export const habitCount = (h, day = dayKey()) => h.counts?.[day] || 0;
+export const habitDone = (h, day = dayKey()) => habitCount(h, day) >= Math.max(1, h.target);
+
+export function habitStreak(h, today = dayKey()) {
+  let key = habitDone(h, today) ? today : addDays(today, -1);
+  let n = 0;
+  while (habitDone(h, key) && n < 3650) {
+    n++;
+    key = addDays(key, -1);
+  }
+  return n;
+}
+
+const minutesOf = (hhmmStr) => {
+  const [h, m] = hhmmStr.split(":").map(Number);
+  return h * 60 + m;
+};
+
+/** ¿Toca recordar este hábito ahora? */
+export function habitReminderDue(h, now, hours, lastAt) {
+  if (!h.remindEvery || habitDone(h, dayKey(now))) return false;
+  const d = new Date(now);
+  const mins = d.getHours() * 60 + d.getMinutes();
+  if (mins < minutesOf(hours.start) || mins >= minutesOf(hours.end)) return false;
+  // El primer aviso llega tras un intervalo desde el inicio de la jornada.
+  const dayStart = atTime(dayKey(now), hours.start);
+  const since = Math.max(lastAt || 0, dayStart);
+  return now - since >= h.remindEvery * 60000;
+}
+
+/* ============================================================
+   Semanas
+   ============================================================ */
+/** Lunes de la semana de `key`. */
+export function weekStart(key = dayKey()) {
+  const d = parseDay(key);
+  return addDays(key, -((d.getDay() + 6) % 7));
+}
+
+export const nextMonday = (key = dayKey()) => addDays(weekStart(key), 7);
+
+export function weekDays(key = dayKey()) {
+  const start = weekStart(key);
+  return Array.from({ length: 7 }, (_, i) => addDays(start, i));
+}
+
+/** ¿Toca recordar la revisión semanal? (una vez por semana, desde el día y hora elegidos) */
+export function weeklyReviewDue(cfg, now, notifiedWeek) {
+  if (!cfg.enabled) return false;
+  const today = dayKey(now);
+  const week = weekStart(today);
+  if (notifiedWeek === week) return false;
+  const dow = (parseDay(today).getDay() + 6) % 7; // 0 = lunes
+  const target = (Number(cfg.day) + 6) % 7;
+  if (dow < target) return false;
+  return dow > target || now >= atTime(today, cfg.time);
+}
+
+/* ============================================================
+   Multimedia
+   ============================================================ */
+export function fmtTime(secs) {
+  const s = Math.max(0, Math.floor(secs || 0));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  return h ? `${h}:${pad(m)}:${pad(s % 60)}` : `${m}:${pad(s % 60)}`;
+}
+
+/** Posición estimada entre dos avisos del reproductor. */
+export function mediaPosition(media, receivedAt, now = Date.now()) {
+  if (!media) return 0;
+  const drift = media.status === "Playing" ? (now - receivedAt) / 1000 : 0;
+  const pos = media.position + drift;
+  return media.length > 0 ? Math.min(pos, media.length) : pos;
 }

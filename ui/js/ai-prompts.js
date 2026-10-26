@@ -133,3 +133,47 @@ Foco hoy: ${ctx.focusMinutes} min.`;
     { role: "user", content: question },
   ];
 }
+
+/** Revisión semanal. */
+export function weeklyMessages(ctx) {
+  const user = `Haz mi revisión semanal (${ctx.weekLabel}).
+
+Foco por día (minutos · tareas hechas):
+${list(ctx.days, (d) => `- ${d.label}: ${d.minutes} min · ${d.done} tareas`)}
+
+Tareas completadas:
+${list(ctx.done, (t) => `- ${t}`)}
+
+Dónde fue el foco (minutos): ${ctx.topTasks.map((t) => `${t.text} (${t.minutes})`).join("; ") || "sin datos"}
+Hábitos (días cumplidos de 7): ${ctx.habits.map((h) => `${h.name} ${h.days}/7`).join("; ") || "ninguno"}
+Apps productivas: ${ctx.productive}. Distracciones: ${ctx.distraction}.
+Pendiente ahora: ${ctx.pending.join("; ") || "nada"}
+
+Devuelve SOLO un JSON: {"resumen":"3-4 frases honestas","logros":["…"],"patrones":"qué te funcionó (días, horas, hábitos)","mejorar":"una cosa concreta para la próxima semana","prioridades":["hasta 3 prioridades para el lunes, sacadas de lo pendiente"]}`;
+  return [
+    { role: "system", content: SYSTEM },
+    { role: "user", content: user },
+  ];
+}
+
+export function parseWeekly(text) {
+  const data = extractJson(text);
+  if (!data) return text?.trim() ? { summary: text.trim().slice(0, 1500), wins: [], patterns: "", improve: "", priorities: [] } : null;
+  const arr = (v, n) => (Array.isArray(v) ? v.map((x) => String(x).slice(0, 200)).filter(Boolean).slice(0, n) : []);
+  return {
+    summary: String(data.resumen || "").slice(0, 1500),
+    wins: arr(data.logros, 6),
+    patterns: String(data.patrones || "").slice(0, 500),
+    improve: String(data.mejorar || "").slice(0, 400),
+    priorities: arr(data.prioridades, 3),
+  };
+}
+
+export function weeklyToText(w, weekLabel) {
+  const parts = [`Revisión semanal · ${weekLabel}`, w.summary];
+  if (w.wins.length) parts.push("Logros:\n" + w.wins.map((x) => `• ${x}`).join("\n"));
+  if (w.patterns) parts.push("Lo que funcionó: " + w.patterns);
+  if (w.improve) parts.push("Para mejorar: " + w.improve);
+  if (w.priorities.length) parts.push("Prioridades del lunes:\n" + w.priorities.map((x) => `• ${x}`).join("\n"));
+  return parts.filter(Boolean).join("\n\n");
+}

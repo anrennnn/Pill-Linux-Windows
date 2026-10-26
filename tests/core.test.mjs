@@ -77,13 +77,13 @@ test("mover elementos", () => {
 
 test("migración desde la v0.1", () => {
   const s = migrate({ tasks: [{ id: "x", text: "a", list: "today", done: false, createdAt: 1 }], settings: { focusMin: 50 } });
-  assert.equal(s.v, 2);
+  assert.equal(s.v, 3);
   assert.equal(s.settings.focusMin, 50);
   assert.equal(s.settings.breakMin, 5);
   assert.equal(s.settings.ai.provider, "none");
   assert.deepEqual(s.tasks[0].sub, []);
   assert.deepEqual(s.blocks, []);
-  assert.equal(migrate(null).v, 2);
+  assert.equal(migrate(null).v, 3);
 });
 
 test("JSON dentro de texto de un modelo", () => {
@@ -165,4 +165,53 @@ test("agenda: eventos y bloques ordenados", () => {
   assert.deepEqual(items.map((i) => i.title), ["Auditoría", "Reunión"]);
   assert.equal(items[0].end - items[0].start, 50 * 60000);
   assert.equal(addDays(day, 1), "2026-10-27");
+});
+
+/* ---------------- v0.3 ---------------- */
+import { fmtTime, habitDone, habitReminderDue, habitStreak, mediaPosition, nextMonday, weekDays, weekStart, weeklyReviewDue } from "../ui/js/core.js";
+
+test("hábitos: hecho, racha y migración con agua por defecto", () => {
+  const h = { target: 2, counts: { "2026-10-24": 2, "2026-10-25": 3, "2026-10-26": 1 } };
+  assert.equal(habitDone(h, "2026-10-25"), true);
+  assert.equal(habitDone(h, "2026-10-26"), false);
+  assert.equal(habitStreak(h, "2026-10-26"), 2, "hoy aún no cuenta, pero no rompe la racha");
+  assert.equal(migrate({ tasks: [] }).habits[0].name, "Agua");
+  assert.deepEqual(migrate({ habits: [] }).habits, [], "si el usuario borró los hábitos, se respeta");
+});
+
+test("hábitos: recordatorios dentro del horario", () => {
+  const hours = { start: "09:00", end: "21:00" };
+  const h = { target: 8, remindEvery: 60, counts: {} };
+  const at = (t) => new Date(`2026-10-26T${t}:00`).getTime();
+  assert.equal(habitReminderDue(h, at("08:30"), hours, 0), false, "antes de la jornada");
+  assert.equal(habitReminderDue(h, at("09:30"), hours, 0), false, "aún no pasó una hora desde el inicio");
+  assert.equal(habitReminderDue(h, at("10:00"), hours, 0), true);
+  assert.equal(habitReminderDue(h, at("10:30"), hours, at("10:00")), false);
+  assert.equal(habitReminderDue(h, at("21:30"), hours, 0), false, "después de la jornada");
+  assert.equal(habitReminderDue({ ...h, counts: { "2026-10-26": 8 } }, at("12:00"), hours, 0), false, "meta cumplida");
+  assert.equal(habitReminderDue({ ...h, remindEvery: 0 }, at("12:00"), hours, 0), false);
+});
+
+test("semanas y revisión semanal", () => {
+  assert.equal(weekStart("2026-10-29"), "2026-10-26");
+  assert.equal(weekStart("2026-11-01"), "2026-10-26", "el domingo pertenece a la semana del lunes anterior");
+  assert.equal(nextMonday("2026-10-30"), "2026-11-02");
+  assert.equal(weekDays("2026-10-28").length, 7);
+  const cfg = { enabled: true, day: 5, time: "17:00" };
+  const at = (d, t) => new Date(`${d}T${t}:00`).getTime();
+  assert.equal(weeklyReviewDue(cfg, at("2026-10-29", "18:00"), null), false, "jueves");
+  assert.equal(weeklyReviewDue(cfg, at("2026-10-30", "16:00"), null), false, "viernes antes de la hora");
+  assert.equal(weeklyReviewDue(cfg, at("2026-10-30", "17:05"), null), true);
+  assert.equal(weeklyReviewDue(cfg, at("2026-10-31", "10:00"), null), true, "sábado si no se avisó");
+  assert.equal(weeklyReviewDue(cfg, at("2026-10-31", "10:00"), "2026-10-26"), false, "ya avisado esta semana");
+  assert.equal(weeklyReviewDue({ ...cfg, day: 0 }, at("2026-11-01", "17:30"), null), true, "domingo");
+});
+
+test("multimedia: tiempo y posición estimada", () => {
+  assert.equal(fmtTime(65), "1:05");
+  assert.equal(fmtTime(3725), "1:02:05");
+  const m = { status: "Playing", position: 10, length: 12 };
+  assert.equal(mediaPosition(m, 1000, 2500), 11.5);
+  assert.equal(mediaPosition(m, 1000, 9000), 12, "no pasa de la duración");
+  assert.equal(mediaPosition({ ...m, status: "Paused" }, 1000, 9000), 10);
 });

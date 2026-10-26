@@ -9,9 +9,11 @@
 <body>
   <div id="island" class="island mode-pill">
     <!-- Píldora cerrada -->
-    <div class="pill" id="pill" title="Clic: abrir · Arrastrar: mover · Clic derecho: captura rápida">
+    <div class="pill" id="pill">
       <span class="dot" id="pillDot"></span>
+      <span class="pill-art" id="pillArt" hidden></span>
       <span class="pill-label" id="pillLabel">FocusPill</span>
+      <span class="eq" id="pillEq" hidden title="Música: pasa el ratón para ver los controles"><i></i><i></i><i></i></span>
       <span class="pill-meta" id="pillMeta"></span>
       <button class="pill-btn" id="pillPlay" aria-label="Iniciar o pausar foco"></button>
       <div class="pill-progress"><i id="pillProgress"></i></div>
@@ -23,6 +25,9 @@
       <input id="captureInput" placeholder="Captura algo…  (!  = hoy · n:  = nota)" spellcheck="false" />
       <span class="chip" id="captureDest">Bandeja</span>
     </form>
+
+    <!-- Música (isla expandida) -->
+    <div class="media" id="mediaView"></div>
 
     <!-- Panel expandido -->
     <div class="panel" id="panel">
@@ -39,8 +44,8 @@
         <button data-tab="today">Hoy</button>
         <button data-tab="focus">Foco</button>
         <button data-tab="notes">Notas</button>
-        <button data-tab="ai" class="tab-ai">IA</button>
         <button data-tab="stats">Progreso</button>
+        <button data-tab="ai" class="tab-ai">IA</button>
         <button data-tab="settings" aria-label="Ajustes" title="Ajustes"></button>
       </nav>
 
@@ -51,8 +56,10 @@
             <input id="todayInput" placeholder="Añade una prioridad para hoy…" spellcheck="false" />
             <button class="add-btn" aria-label="Añadir"></button>
           </form>
+          <div class="modes" id="modesBox"></div>
           <div id="agendaBox"></div>
           <div class="goal" id="goal"></div>
+          <div class="habits" id="habitsBox"></div>
 
           <div class="section-title"><span>Prioridades</span><span id="todayCount" class="muted"></span></div>
           <ul class="list" id="todayList"></ul>
@@ -76,6 +83,7 @@
 
         <!-- FOCO -->
         <section class="view" data-view="focus">
+          <div class="now-playing" id="nowPlaying" hidden></div>
           <div class="ring-wrap">
             <svg class="ring" viewBox="0 0 200 200" aria-hidden="true">
               <circle class="ring-track" cx="100" cy="100" r="86" />
@@ -129,12 +137,14 @@
         <section class="view" data-view="ai">
           <div id="aiConnect"></div>
           <div id="aiActions" class="ai-actions">
-            <button class="ai-btn" id="planBtn"><b>Planificar mi día</b><small>Bloques de foco alrededor de tus reuniones</small></button>
-            <button class="ai-btn" id="closeBtn"><b>Cierre del día</b><small>Qué hiciste, qué queda y qué mejorar</small></button>
+            <button class="ai-btn" id="planBtn"><b>Planificar mi día</b><small>Bloques alrededor de tus reuniones</small></button>
+            <button class="ai-btn" id="closeBtn"><b>Cierre del día</b><small>Qué hiciste y qué queda</small></button>
+            <button class="ai-btn" id="weeklyBtn"><b>Revisión semanal</b><small>Patrones y prioridades del lunes</small></button>
           </div>
           <p class="hint provider" id="aiProviderLabel"></p>
           <div id="aiPlan"></div>
           <div id="aiClose"></div>
+          <div id="aiWeekly"></div>
           <div id="aiChat"></div>
           <form id="askForm" class="add-row ask" autocomplete="off">
             <input id="askInput" placeholder="Pregunta algo sobre tu día…" spellcheck="false" />
@@ -147,6 +157,7 @@
           <div class="kpis" id="kpis"></div>
           <div class="section-title"><span>Minutos de foco · 7 días</span></div>
           <div class="bars" id="bars"></div>
+          <div id="habitStats"></div>
           <div class="section-title">
             <span>Tiempo real por aplicación</span>
             <div class="seg mini" id="rangeSeg"><button data-range="today">Hoy</button><button data-range="week">7 días</button></div>

@@ -1,5 +1,24 @@
 # Cambios
 
+## 0.3.0
+
+### Música: la isla dinámica dentro de la píldora
+- Controles multimedia por MPRIS en Linux (Spotify, VLC, navegadores…) y por controles multimedia del sistema en Windows.
+- Píldora con carátula, título y ecualizador; isla expandida al pasar el ratón o al cambiar de canción, con progreso, salto y cambio de reproductor.
+- Tarjeta «Ahora suena» en Foco. Ajustes para mostrarla, asomarla o fijar un reproductor.
+
+### Productividad
+- **Modos:** abren webs y apps, cambian el preset de foco y el ambiente, activan «no molestar» y empiezan el foco. Se listan las apps instaladas (.desktop en Linux, menú Inicio en Windows).
+- **Hábitos y agua:** meta diaria, anillo de progreso, racha, recordatorios en horario y «+1» desde la píldora.
+- **Revisión semanal con IA:** resumen, patrones, qué mejorar y prioridades del lunes programadas solas; recordatorio semanal.
+
+### Interfaz
+- La pestaña IA pasa al final, junto a Ajustes.
+- Ya no aparece un *tooltip* encima de la isla al pasar el ratón.
+
+### Calidad
+- 26 tests de la interfaz y 30 de Rust, más pruebas de integración con un reproductor MPRIS real y con el lanzamiento de apps.
+
 ## 0.2.0
 
 ### IA

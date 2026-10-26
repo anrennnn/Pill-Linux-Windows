@@ -27,6 +27,9 @@ const MOCKS = {
         consejo: "Deja el móvil en otra habitación durante el primer bloque.",
       });
     }
+    if (last.includes('"patrones"')) {
+      return JSON.stringify({ resumen: "Semana sólida: 425 minutos de foco, con los mejores días el miércoles y el domingo.", logros: ["Auditoría SEO terminada", "Racha de agua de 3 días"], patrones: "Rindes más por la mañana y en bloques de 50 minutos.", mejorar: "Las distracciones suben después de comer: pon el modo SEO a las 15:00.", prioridades: ["Responder propuesta de GHL", "Revisar Search Console"] });
+    }
     if (last.includes('"logros"')) {
       return JSON.stringify({ resumen: "Buen día: cerraste la prioridad más difícil y mantuviste el foco por la mañana.", logros: ["Auditoría SEO terminada", "100 min de foco"], aprender: "Las distracciones subieron después de comer.", "mañana": ["Responder propuesta de GHL", "Grabar reel"] });
     }
@@ -37,6 +40,16 @@ const MOCKS = {
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     return { [key]: { code: 5400, firefox: 2700, "gnome-terminal-server": 1500, discord: 900, spotify: 600, telegram: 300 } };
   },
+  media_state: () => ({
+    player: "org.mpris.MediaPlayer2.spotify", name: "Spotify", pinned: false, status: "Playing",
+    title: "Midnight City", artist: "M83", album: "Hurry Up, We're Dreaming", art: "demo-art",
+    length: 244, position: 83, can_control: true, can_seek: true, track: "/demo/1",
+    players: [{ id: "org.mpris.MediaPlayer2.spotify", name: "Spotify", status: "Playing" }, { id: "org.mpris.MediaPlayer2.vlc", name: "VLC", status: "Paused" }],
+  }),
+  media_art: () =>
+    "data:image/svg+xml;base64," +
+    btoa('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff5f9e"/><stop offset=".5" stop-color="#7b5cff"/><stop offset="1" stop-color="#1e2a78"/></linearGradient></defs><rect width="100" height="100" fill="url(#g)"/><circle cx="50" cy="58" r="22" fill="#ffd36e" opacity=".9"/><rect y="62" width="100" height="38" fill="#141432" opacity=".85"/></svg>'),
+  list_apps: () => [{ id: "code.desktop", name: "Visual Studio Code" }, { id: "firefox.desktop", name: "Firefox" }, { id: "spotify.desktop", name: "Spotify" }, { id: "thunar.desktop", name: "Archivos" }],
   fetch_calendar: () => {
     const d = new Date(now);
     const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;

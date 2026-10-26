@@ -58,3 +58,14 @@ test("preguntar conserva un historial corto", () => {
   assert.equal(msgs.length, 1 + 6 + 1);
   assert.match(msgs[0].content, /Auditoría SEO/);
 });
+
+import { parseWeekly, weeklyMessages, weeklyToText } from "../ui/js/ai-prompts.js";
+
+test("revisión semanal: prompt y validación", () => {
+  const ctx = { weekLabel: "26 oct – 1 nov", days: [{ label: "lun", minutes: 50, done: 2 }], done: ["A"], topTasks: [{ text: "A", minutes: 50 }], habits: [{ name: "Agua", days: 4 }], productive: "5 h", distraction: "40 min", pending: ["B"] };
+  assert.match(weeklyMessages(ctx)[1].content, /Agua 4\/7/);
+  const w = parseWeekly('{"resumen":"Bien","logros":["A"],"patrones":"mañanas","mejorar":"menos Discord","prioridades":["B","C","D","E"]}');
+  assert.deepEqual(w.priorities, ["B", "C", "D"]);
+  assert.match(weeklyToText(w, "semana"), /Prioridades del lunes:\n• B/);
+  assert.equal(parseWeekly("texto libre").summary, "texto libre");
+});

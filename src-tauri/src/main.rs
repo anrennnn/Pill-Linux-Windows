@@ -2,9 +2,11 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod ai;
+mod apps;
 mod data;
 mod http;
 mod integrations;
+mod media;
 mod system;
 mod tracker;
 mod window;
@@ -272,6 +274,51 @@ async fn ai_chat(config: ai::ClientConfig, messages: Value, json: bool) -> Resul
     blocking(move || ai::chat(&config, &messages, json)).await
 }
 
+/* ---------------- Lanzador de modos ---------------- */
+
+#[tauri::command]
+async fn list_apps() -> Result<Vec<apps::AppEntry>, String> {
+    blocking(|| Ok(apps::list())).await
+}
+
+#[tauri::command]
+fn launch_app(id: String) -> Result<(), String> {
+    apps::launch(&id)
+}
+
+#[tauri::command]
+fn open_url(url: String) -> Result<(), String> {
+    apps::open_url(&url)
+}
+
+/* ---------------- Multimedia ---------------- */
+
+#[tauri::command]
+fn media_state(media: tauri::State<media::Media>) -> media::MediaState {
+    media.current()
+}
+
+#[tauri::command]
+async fn media_control(app: AppHandle, action: String) -> Result<(), String> {
+    blocking(move || media::control(&app.state::<media::Media>(), &action)).await
+}
+
+#[tauri::command]
+async fn media_seek(app: AppHandle, seconds: f64) -> Result<(), String> {
+    blocking(move || media::seek(&app.state::<media::Media>(), seconds)).await
+}
+
+#[tauri::command]
+async fn media_art(app: AppHandle, key: String) -> Result<String, String> {
+    blocking(move || media::art(&app.state::<media::Media>(), &key)).await
+}
+
+/// Fija un reproductor (o vuelve a la elección automática con `None`).
+#[tauri::command]
+fn media_pin(media: tauri::State<media::Media>, player: Option<String>) {
+    *media.pinned.lock().unwrap() = player;
+}
+
 /* ---------------- Integraciones ---------------- */
 
 #[tauri::command]
@@ -488,6 +535,7 @@ fn main() {
         .manage(WinState::new())
         .manage(Pending { action: Mutex::new(None), ready: std::sync::atomic::AtomicBool::new(false) })
         .manage(system::Dnd::new())
+        .manage(media::Media::new())
         .invoke_handler(tauri::generate_handler![
             load_state,
             save_state,
@@ -523,6 +571,14 @@ fn main() {
             todoist_today,
             todoist_close,
             notion_append,
+            media_state,
+            list_apps,
+            launch_app,
+            open_url,
+            media_control,
+            media_seek,
+            media_art,
+            media_pin,
             license_status,
             license_activate,
             check_update,
@@ -573,6 +629,7 @@ fn main() {
             register_shortcuts(&handle);
             spawn_saver(handle.clone());
             tracker::spawn(handle.clone());
+            media::spawn(handle.clone());
             #[cfg(feature = "licensing")]
             revalidate_license(handle);
             Ok(())

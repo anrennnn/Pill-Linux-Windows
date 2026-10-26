@@ -1,7 +1,7 @@
 // Vista "Hoy": agenda, meta de foco, prioridades, bandeja y programadas.
 
 import * as A from "../actions.js";
-import { MAX_TODAY, REPEATS, dayKey, esc, hhmm, minutesOn, parseDay } from "../core.js";
+import { MAX_TODAY, REPEATS, dayKey, esc, habitCount, habitDone, hhmm, minutesOn, parseDay } from "../core.js";
 import { ICONS } from "../icons.js";
 import { S, state } from "../store.js";
 import { $, $$, busy, ui } from "../ui.js";
@@ -97,12 +97,44 @@ function agenda() {
   return `<div class="section-title"><span>Agenda</span><span class="muted">${new Date().toLocaleDateString("es", { weekday: "long", day: "numeric" })}</span></div><ul class="agenda">${rows}</ul>`;
 }
 
+function modesRow() {
+  const modes = S().modes;
+  if (!modes.length) return "";
+  const active = A.activeMode();
+  const chips = modes
+    .map((m) =>
+      active?.id === m.id
+        ? `<button class="mode-chip active" data-act="mode-exit" title="Terminar el modo">${esc(m.emoji || "▶")} ${esc(m.name)} <span class="x">${ICONS.x}</span></button>`
+        : `<button class="mode-chip" data-act="mode" data-mode="${m.id}" title="Activar: abre sus apps y webs">${esc(m.emoji || "▶")} ${esc(m.name)}</button>`
+    )
+    .join("");
+  return `<div class="mode-row">${chips}</div>`;
+}
+
+function habitsRow() {
+  if (!state.habits.length) return "";
+  const chips = state.habits
+    .map((h) => {
+      const n = habitCount(h);
+      const pct = Math.min(1, n / Math.max(1, h.target));
+      const deg = Math.round(pct * 360);
+      return `<button class="habit ${habitDone(h) ? "done" : ""}" data-act="habit" data-habit="${h.id}" title="Clic: +1 · Clic derecho: −1">
+          <span class="habit-ring" style="--deg:${deg}deg"><span>${esc(h.emoji)}</span></span>
+          <span class="habit-txt"><b>${esc(h.name)}</b><small>${n}/${h.target}</small></span>
+        </button>`;
+    })
+    .join("");
+  return `<div class="section-title"><span>Hábitos</span></div><div class="habit-row">${chips}</div>`;
+}
+
 export function render() {
   const today = A.todayTasks();
   const inbox = A.inboxTasks();
   const done = A.doneToday();
   const scheduled = A.scheduledTasks();
 
+  $("#modesBox").innerHTML = modesRow();
+  $("#habitsBox").innerHTML = habitsRow();
   $("#agendaBox").innerHTML = agenda();
 
   $("#todayCount").textContent = `${today.length}/${MAX_TODAY}`;
@@ -240,7 +272,17 @@ export function bind(root, { goFocus }) {
         A.startFocus(ag.dataset.task || null);
         return goFocus();
       case "block-del": return A.deleteBlock(ag.dataset.block);
+      case "mode": return A.activateMode(btn.dataset.mode);
+      case "mode-exit": return A.exitMode();
+      case "habit": return A.habitAdd(btn.dataset.habit, 1);
     }
+  });
+
+  root.addEventListener("contextmenu", (e) => {
+    const h = e.target.closest('[data-act="habit"]');
+    if (!h) return;
+    e.preventDefault();
+    A.habitAdd(h.dataset.habit, -1);
   });
 
   root.addEventListener("dblclick", (e) => {

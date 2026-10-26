@@ -2,10 +2,14 @@
 
 import { invoke } from "./bridge.js";
 import {
-  MAX_TODAY, addDays, agendaFor, atTime, breakAfter, categorize, completeTask, dayKey, expandEvents, hhmm,
-  minutesOn, moveItem, parseCapture, parseDay, parseIcs, phaseMs, remainingMs, rollover, sortTasks, uid, usageSummary,
+  MAX_TODAY, addDays, agendaFor, atTime, breakAfter, categorize, completeTask, dayKey, expandEvents, habitCount, habitDone,
+  habitReminderDue, hhmm, lastDays, minutesOn, moveItem, nextMonday, parseCapture, parseDay, parseIcs, phaseMs, remainingMs,
+  rollover, sortTasks, uid, usageSummary, weekStart, weeklyReviewDue,
 } from "./core.js";
-import { askMessages, classifyMessages, closeMessages, closeToText, parseClassify, parseClose, parsePlan, planMessages } from "./ai-prompts.js";
+import {
+  askMessages, classifyMessages, closeMessages, closeToText, parseClassify, parseClose, parsePlan, parseWeekly, planMessages,
+  weeklyMessages, weeklyToText,
+} from "./ai-prompts.js";
 import { F, S, commit, state } from "./store.js";
 import { chime, playAmbient, stopAmbient } from "./sounds.js";
 import { flash, toast, track, ui } from "./ui.js";
@@ -184,7 +188,7 @@ function syncCycleDay() {
 
 let dndOn = false;
 /** Efectos de la sesión: "no molestar" y sonido ambiente. */
-function applyFocusEffects() {
+export function applyFocusEffects() {
   const f = F();
   const deep = f.phase === "focus" && f.running;
   if (S().dnd && deep !== dndOn) {
@@ -561,4 +565,220 @@ export async function importTodoist() {
     added++;
   }
   toast(added ? `${added} tareas importadas de Todoist` : "Todoist: nada nuevo para hoy");
+}
+
+/* ============================================================
+   Multimedia
+   ============================================================ */
+/** Nuevo estado del reproductor. Devuelve si cambió la canción. */
+export function onMedia(m) {
+  const prev = ui.media;
+  ui.media = m && m.player ? m : null;
+  ui.mediaAt = Date.now();
+  if (ui.media?.art && !(ui.media.art in ui.mediaArt)) loadArt(ui.media.art);
+  return !!(prev && ui.media && prev.track !== ui.media.track && ui.media.status === "Playing" && ui.media.title);
+}
+
+async function loadArt(key) {
+  ui.mediaArt[key] = null;
+  try {
+    ui.mediaArt[key] = await invoke("media_art", { key });
+  } catch (_) {
+    /* sin carátula: se muestra el icono */
+  }
+  commit({ render: true });
+}
+
+export async function mediaControl(action) {
+  const m = ui.media;
+  if (!m) return;
+  // Respuesta inmediata en la interfaz; el reproductor confirma en el siguiente aviso.
+  if (action === "play-pause") {
+    m.position = m.position + (m.status === "Playing" ? (Date.now() - ui.mediaAt) / 1000 : 0);
+    m.status = m.status === "Playing" ? "Paused" : "Playing";
+    ui.mediaAt = Date.now();
+  }
+  commit({ render: true });
+  try {
+    await invoke("media_control", { action });
+  } catch (e) {
+    toast(`Reproductor: ${e}`);
+  }
+}
+
+export async function mediaSeek(seconds) {
+  if (!ui.media?.can_seek) return;
+  ui.media.position = seconds;
+  ui.mediaAt = Date.now();
+  commit({ render: true });
+  invoke("media_seek", { seconds }).catch((e) => toast(`Reproductor: ${e}`));
+}
+
+export function mediaPin(player) {
+  invoke("media_pin", { player: player || null });
+  state.ui.mediaPinned = player || null;
+  commit();
+}
+
+/* ============================================================
+   Modos
+   ============================================================ */
+export const activeMode = () => S().modes.find((m) => m.id === state.activeMode?.id) || null;
+
+export async function activateMode(id) {
+  const mode = S().modes.find((m) => m.id === id);
+  if (!mode) return;
+  if (state.activeMode) exitMode({ quiet: true });
+  const s = S();
+  state.activeMode = { id, prev: { focusMin: s.focusMin, breakMin: s.breakMin, ambient: { ...s.ambient }, dnd: s.dnd } };
+  if (mode.focusMin) Object.assign(s, { focusMin: mode.focusMin, breakMin: mode.breakMin || s.breakMin });
+  if (mode.ambient && mode.ambient !== "keep") s.ambient = { ...s.ambient, sound: mode.ambient, withFocus: true };
+  if (mode.dnd) s.dnd = true;
+  const failures = [];
+  for (const url of mode.urls || []) await invoke("open_url", { url }).catch((e) => failures.push(`${url}: ${e}`));
+  for (const app of mode.apps || []) await invoke("launch_app", { id: app.id }).catch((e) => failures.push(`${app.name}: ${e}`));
+  if (mode.startFocus) startFocus(mode.taskId && findTask(mode.taskId) ? mode.taskId : undefined);
+  else applyFocusEffects();
+  commit();
+  flash(`${mode.emoji || "▶"} Modo ${mode.name}`, 2500, "info");
+  if (failures.length) toast(`No se pudo abrir: ${failures[0]}`);
+}
+
+export function exitMode({ quiet = false } = {}) {
+  const active = state.activeMode;
+  if (!active) return;
+  Object.assign(S(), { focusMin: active.prev.focusMin, breakMin: active.prev.breakMin, ambient: active.prev.ambient, dnd: active.prev.dnd });
+  state.activeMode = null;
+  if (F().phase !== "focus" || !F().running) stopAmbient();
+  applyFocusEffects();
+  commit();
+  if (!quiet) toast("Modo terminado");
+}
+
+export function newMode() {
+  const mode = { id: uid(), name: "Nuevo modo", emoji: "💼", urls: [], apps: [], focusMin: 0, breakMin: 0, ambient: "keep", dnd: false, startFocus: true };
+  S().modes.push(mode);
+  commit();
+  return mode;
+}
+
+/* ============================================================
+   Hábitos
+   ============================================================ */
+export function habitAdd(id, delta = 1) {
+  const h = state.habits.find((x) => x.id === id);
+  if (!h) return;
+  const day = dayKey();
+  const was = habitDone(h, day);
+  h.counts = { ...h.counts, [day]: Math.max(0, habitCount(h, day) + delta) };
+  // Solo guardamos 120 días de historial por hábito.
+  const keys = Object.keys(h.counts).sort();
+  for (const k of keys.slice(0, Math.max(0, keys.length - 120))) delete h.counts[k];
+  if (!was && habitDone(h, day)) toast(`${h.emoji} ${h.name}: meta de hoy cumplida`);
+  commit();
+}
+
+export function addHabit() {
+  const h = { id: uid(), name: "Nuevo hábito", emoji: "✨", target: 1, remindEvery: 0, counts: {}, createdAt: Date.now() };
+  state.habits.push(h);
+  commit();
+  return h;
+}
+
+export function deleteHabit(id) {
+  const idx = state.habits.findIndex((h) => h.id === id);
+  if (idx === -1) return;
+  const [h] = state.habits.splice(idx, 1);
+  commit();
+  toast(`${h.name} borrado`, { label: "Deshacer", run: () => (state.habits.splice(idx, 0, h), commit()) });
+}
+
+/** Recordatorios de hábitos (agua, estirar…) dentro del horario elegido. */
+export function checkHabits(now = Date.now()) {
+  state.ui.habitReminders = state.ui.habitReminders || {};
+  for (const h of state.habits) {
+    if (!habitReminderDue(h, now, S().habitHours, state.ui.habitReminders[h.id])) continue;
+    state.ui.habitReminders[h.id] = now;
+    const progress = `${habitCount(h, dayKey(now))}/${h.target} hoy`;
+    notify(`${h.emoji} ${h.name}`, progress);
+    flash(`${h.emoji} ${h.name} · ${progress}`, 8000, "info");
+    ui.habitPrompt = { id: h.id, until: now + 8000 };
+    commit({ render: false });
+  }
+}
+
+/* ============================================================
+   Revisión semanal
+   ============================================================ */
+function weekContext() {
+  const days = lastDays(7);
+  const from = days[0];
+  const label = `${parseDay(days[0]).toLocaleDateString("es", { day: "numeric", month: "short" })} – ${parseDay(days[6]).toLocaleDateString("es", { day: "numeric", month: "short" })}`;
+  const doneTasks = state.tasks.filter((t) => t.done && t.doneAt && dayKey(t.doneAt) >= from);
+  const byTask = new Map();
+  for (const s of state.sessions.filter((x) => dayKey(x.start) >= from)) byTask.set(s.taskText || "Sin tarea", (byTask.get(s.taskText || "Sin tarea") || 0) + s.minutes);
+  const usage = {};
+  for (const d of days) for (const [app, secs] of Object.entries(ui.usage[d] || {})) usage[app] = (usage[app] || 0) + secs;
+  const sum = usageSummary(usage, S().apps);
+  return {
+    weekLabel: label,
+    days: days.map((d) => ({
+      label: parseDay(d).toLocaleDateString("es", { weekday: "short", day: "numeric" }),
+      minutes: minutesOn(state.sessions, d),
+      done: doneTasks.filter((t) => dayKey(t.doneAt) === d).length,
+    })),
+    done: doneTasks.slice(-25).map((t) => t.text),
+    topTasks: [...byTask.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([text, minutes]) => ({ text, minutes })),
+    habits: state.habits.map((h) => ({ name: h.name, days: days.filter((d) => habitDone(h, d)).length })),
+    productive: `${Math.round(sum.productive / 60)} min`,
+    distraction: `${Math.round(sum.distraction / 60)} min`,
+    pending: [...todayTasks(), ...inboxTasks()].slice(0, 10).map((t) => t.text),
+  };
+}
+
+export async function weeklyReview() {
+  const ctx = weekContext();
+  const result = await track("weekly", async () => {
+    const w = parseWeekly(await chat(weeklyMessages(ctx), true));
+    if (!w) throw new Error("La IA no devolvió la revisión.");
+    return w;
+  }, rerender);
+  if (result) {
+    state.ai.weekly = { week: weekStart(), label: ctx.weekLabel, ...result };
+    commit();
+  }
+}
+
+export function scheduleMondayPriorities() {
+  const w = state.ai.weekly;
+  if (!w?.priorities.length) return;
+  const monday = nextMonday();
+  for (const p of w.priorities) addTask(p, "scheduled", { dueDay: monday, homeList: "today" });
+  state.ai.weekly = { ...w, scheduled: true };
+  commit();
+  toast(`${w.priorities.length} prioridades programadas para el lunes`);
+}
+
+export function saveWeeklyAsNote() {
+  const w = state.ai.weekly;
+  if (!w) return;
+  state.notes.push({ id: uid(), text: weeklyToText(w, w.label), createdAt: Date.now() });
+  commit();
+  toast("Revisión guardada en Notas");
+}
+
+export async function sendWeeklyToNotion() {
+  const w = state.ai.weekly;
+  const n = S().notion;
+  if (!w || !n.token || !n.page) return toast("Configura Notion en Ajustes");
+  const ok = await track("notion", () => invoke("notion_append", { token: n.token, page: n.page, title: `Revisión semanal · ${w.label}`, text: weeklyToText(w, w.label) }), rerender);
+  toast(ok !== null ? "Enviado a Notion ✓" : `Notion: ${ui.errors.notion}`);
+}
+
+export function checkWeekly(now = Date.now()) {
+  if (!weeklyReviewDue(S().weeklyReview, now, state.ai.weeklyNotified)) return;
+  state.ai.weeklyNotified = weekStart(dayKey(now));
+  notify("Revisión semanal", aiReady() ? "Abre FocusPill → IA → Revisión semanal." : "Revisa tu semana en Progreso.");
+  flash("Hora de la revisión semanal", 8000, "info");
+  commit({ render: false });
 }

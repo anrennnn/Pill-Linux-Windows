@@ -2,9 +2,11 @@
 
 Píldora flotante de productividad para **Linux y Windows**. Vive arriba en el centro de la pantalla, en todos tus escritorios virtuales, y te dice en qué estás trabajando, cuánto te queda de foco y qué viene en tu agenda.
 
+Desde la v0.3 también es tu **isla dinámica**: muestra la música que suena y la controla sin salir de lo que haces (absorbe a [Islet](https://github.com/anrennnn/Islet-Linux)).
+
 Su IA es la de **tu distro** o un **modelo local** que elijas tú: ningún dato sale de tu equipo salvo hacia los servicios que conectes.
 
-![Píldora y captura rápida](docs/pildora.png)
+![Píldora con música, píldora en foco e isla de música](docs/musica.png)
 
 ![Panel: Hoy, Foco e IA](docs/panel.png)
 
@@ -16,7 +18,22 @@ Su IA es la de **tu distro** o un **modelo local** que elijas tú: ningún dato 
 |---|---|---|
 | **Píldora** | Siempre visible | Tarea actual, temporizador, próxima reunión y botón ▶/‖ |
 | **Captura** | `Ctrl+Alt+Espacio` o clic derecho en la píldora | Apuntar algo sin salir de lo que haces |
-| **Panel** | Clic en la píldora o `Ctrl+Alt+P` | Hoy, Foco, Notas, IA, Progreso y Ajustes |
+| **Música** | Pasar el ratón por la píldora, o solo al cambiar de canción | Carátula, título, progreso con salto y controles |
+| **Panel** | Clic en la píldora o `Ctrl+Alt+P` | Hoy, Foco, Notas, Progreso, IA y Ajustes |
+
+**Música (isla dinámica)**
+- Funciona con Spotify, VLC, Firefox, Chrome, Rhythmbox y cualquier reproductor con MPRIS en Linux, o con controles multimedia en Windows.
+- Elige sola el reproductor que está sonando; también puedes fijar uno en Ajustes.
+- En la píldora: carátula, título y ecualizador. Al pasar el ratón: controles, progreso con salto y cambio de reproductor.
+- Durante el foco solo se ve un pequeño ecualizador, para no distraer.
+
+**Modos**
+- Un botón en Hoy, como «📈 SEO», abre de una vez tus webs y apps de trabajo, cambia el preset de foco y el ambiente, activa «no molestar» y empieza el foco.
+- Al salir del modo se restaura todo como estaba.
+
+**Hábitos y agua**
+- Hábitos con meta diaria (💧 Agua 8 vasos, 🧘 Estirar…), anillo de progreso y racha.
+- Recordatorios en tu horario. Durante el aviso, el botón de la píldora pasa a «+1».
 
 **Hoy**
 - Agenda del día con tus calendarios (Google, Outlook, Nextcloud, Proton…) y tus bloques de tiempo.
@@ -35,10 +52,12 @@ Su IA es la de **tu distro** o un **modelo local** que elijas tú: ningún dato 
 - **Planificar mi día:** propone bloques de foco alrededor de tus reuniones y los añade a tu agenda.
 - **Cierre del día:** resumen de lo hecho, lo pendiente y qué mejorar. Se puede guardar en Notas o enviar a Notion.
 - **Clasificar capturas:** decide si lo que apuntas es una tarea, una nota o algo para hoy.
+- **Revisión semanal:** patrones, qué mejorar y hasta 3 prioridades para el lunes, que se programan solas. Te la recuerda el día y la hora que elijas.
 - **Preguntar:** dudas sobre tu día con el contexto de tus tareas.
 
 **Progreso**
 - Foco de hoy, bloques completados, racha y gráfico de 7 días.
+- Hábitos de la semana, con los días cumplidos y la racha.
 - **Tiempo real por aplicación:** productivo, neutro o distracción. Se cambia la categoría con un clic. Solo se registra el nombre de la app, nunca títulos ni contenido.
 
 **Ajustes**
@@ -59,10 +78,10 @@ Descarga la última versión desde **[Releases](https://github.com/anrennnn/pill
 | Cualquier distro | `.AppImage` → `chmod +x FocusPill_*.AppImage && ./FocusPill_*.AppImage` |
 | Windows 10/11 | `.msi` o `-setup.exe` |
 
-**Descarga directa de la v0.2.0** (mismos archivos que la Release):
+**Descarga directa de la v0.3.0** (mismos archivos que la Release):
 
-- Linux: [FocusPill_0.2.0_amd64.deb](https://github.com/anrennnn/pill-linux-windows/raw/main/releases/FocusPill_0.2.0_amd64.deb) · [FocusPill-0.2.0-1.x86_64.rpm](https://github.com/anrennnn/pill-linux-windows/raw/main/releases/FocusPill-0.2.0-1.x86_64.rpm)
-- Windows: [FocusPill_0.2.0_x64-setup.exe](https://github.com/anrennnn/pill-linux-windows/raw/main/releases/FocusPill_0.2.0_x64-setup.exe) · [FocusPill_0.2.0_x64_es-ES.msi](https://github.com/anrennnn/pill-linux-windows/raw/main/releases/FocusPill_0.2.0_x64_es-ES.msi)
+- Linux: [FocusPill_0.3.0_amd64.deb](https://github.com/anrennnn/pill-linux-windows/raw/main/releases/FocusPill_0.3.0_amd64.deb) · [FocusPill-0.3.0-1.x86_64.rpm](https://github.com/anrennnn/pill-linux-windows/raw/main/releases/FocusPill-0.3.0-1.x86_64.rpm)
+- Windows: [FocusPill_0.3.0_x64-setup.exe](https://github.com/anrennnn/pill-linux-windows/raw/main/releases/FocusPill_0.3.0_x64-setup.exe) · [FocusPill_0.3.0_x64_es-ES.msi](https://github.com/anrennnn/pill-linux-windows/raw/main/releases/FocusPill_0.3.0_x64_es-ES.msi)
 
 Los instaladores de Windows no están firmados con certificado: si aparece «Windows protegió su PC», pulsa «Más información» → «Ejecutar de todos modos». El AppImage, por su tamaño, solo está en Releases.
 

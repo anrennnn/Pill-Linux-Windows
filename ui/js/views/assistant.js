@@ -65,6 +65,28 @@ function closeCard() {
     </div>`;
 }
 
+function weeklyCard() {
+  const w = state.ai.weekly;
+  if (busy("weekly")) return `<div class="card"><div class="loading"><span class="spinner"></span>Revisando tu semana…</div></div>`;
+  const err = ui.errors.weekly ? `<p class="error">${esc(ui.errors.weekly)}</p>` : "";
+  if (!w) return err ? `<div class="card">${err}</div>` : "";
+  const list = (items) => `<ul class="bullets">${items.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>`;
+  const notion = S().notion.token && S().notion.page;
+  return `<div class="card">
+      <div class="card-title">${ICONS.calendar} Revisión semanal <span class="muted small">${esc(w.label)}</span></div>
+      <p>${esc(w.summary)}</p>
+      ${w.wins.length ? `<div class="mini-title">Logros</div>${list(w.wins)}` : ""}
+      ${w.patterns ? `<div class="mini-title">Lo que funcionó</div><p>${esc(w.patterns)}</p>` : ""}
+      ${w.improve ? `<div class="mini-title">Para mejorar</div><p>${esc(w.improve)}</p>` : ""}
+      ${w.priorities.length ? `<div class="mini-title">Prioridades del lunes</div>${list(w.priorities)}` : ""}
+      <div class="card-actions">
+        ${w.priorities.length ? (w.scheduled ? `<span class="ok-text">${ICONS.check} Programadas para el lunes</span>` : `<button class="btn primary small" data-act="weekly-schedule">Programar para el lunes</button>`) : ""}
+        <button class="btn ghost small" data-act="weekly-note">Guardar en Notas</button>
+        ${notion ? `<button class="btn ghost small" data-act="weekly-notion" ${busy("notion") ? "disabled" : ""}>Enviar a Notion</button>` : ""}
+      </div>
+    </div>`;
+}
+
 function chat() {
   const bubbles = state.ai.chat
     .map((m) => `<div class="bubble ${m.role}">${esc(m.content)}</div>`)
@@ -80,6 +102,8 @@ export function render() {
   $("#aiProviderLabel").textContent = ready ? providerLabel() : "";
   $("#aiPlan").innerHTML = ready ? planCard() : "";
   $("#aiClose").innerHTML = ready ? closeCard() : "";
+  $("#aiWeekly").innerHTML = ready ? weeklyCard() : "";
+  $("#weeklyBtn").disabled = busy("weekly");
   $("#aiChat").innerHTML = ready ? chat() : "";
   $("#askForm").hidden = !ready;
   $("#planBtn").disabled = busy("plan");
@@ -97,6 +121,7 @@ function providerLabel() {
 export function bind(root) {
   $("#planBtn").addEventListener("click", A.planDay);
   $("#closeBtn").addEventListener("click", A.closeDay);
+  $("#weeklyBtn").addEventListener("click", A.weeklyReview);
   $("#askForm").addEventListener("submit", (e) => {
     e.preventDefault();
     const input = $("#askInput");
@@ -120,6 +145,9 @@ export function bind(root) {
         return commit();
       case "close-note": return A.saveCloseAsNote();
       case "close-notion": return A.sendCloseToNotion();
+      case "weekly-schedule": return A.scheduleMondayPriorities();
+      case "weekly-note": return A.saveWeeklyAsNote();
+      case "weekly-notion": return A.sendWeeklyToNotion();
     }
   });
 }

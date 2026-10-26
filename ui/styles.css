@@ -507,3 +507,113 @@ kbd { display: inline-block; min-width: 20px; padding: 2px 6px; border-radius: 5
 
 /* Las columnas de las listas no deben crecer con textos largos. */
 .list, .agenda, .apps, .notes, .cals, .subs, .chat { grid-template-columns: minmax(0, 1fr); }
+
+/* =====================================================
+   v0.3 · Música (isla dinámica), modos y hábitos
+   ===================================================== */
+.island.mode-media { width: 460px; height: 104px; border-radius: 30px; }
+.media { position: absolute; inset: 0; opacity: 0; pointer-events: none; transition: opacity 0.18s ease; display: flex; align-items: center; gap: 14px; padding: 0 16px 0 14px; cursor: pointer; }
+.mode-media .media { opacity: 1; pointer-events: auto; transition-delay: 0.08s; }
+.media-art, .np-art { flex: none; object-fit: cover; background: var(--surface-3); display: grid; place-items: center; color: var(--muted); }
+.media-art { width: 72px; height: 72px; border-radius: 16px; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35); }
+.art-empty svg { width: 40%; height: 40%; }
+.media-main { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.media-title { font-size: 14.5px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.media-sub { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12px; color: var(--muted); }
+.media-artist { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mplayer { flex: none; display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px; border-radius: 8px; background: var(--surface-3); font-size: 10.5px; font-weight: 600; color: var(--muted); }
+.mplayer svg { width: 10px; height: 10px; }
+button.mplayer:hover { color: var(--text); }
+.media-empty { flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--muted); }
+.media-empty svg { width: 16px; height: 16px; }
+.mprog { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 10.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.mtime { flex: none; min-width: 30px; }
+.mtime:last-child { text-align: right; }
+.mbar { flex: 1; height: 4px; border-radius: 2px; background: var(--surface-3); overflow: hidden; position: relative; }
+.mbar i { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--text); border-radius: 2px; transition: width 0.25s linear; }
+.mprog.seekable .mbar { cursor: pointer; height: 5px; }
+.mprog.seekable .mbar:hover i { background: var(--accent); }
+.media-controls, .np-controls { flex: none; display: flex; align-items: center; gap: 4px; }
+.mbtn { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; color: var(--text); transition: background 0.15s, transform 0.1s; }
+.mbtn svg { width: 15px; height: 15px; }
+.mbtn:hover { background: var(--surface-3); }
+.mbtn:active { transform: scale(0.92); }
+.mbtn.big { width: 40px; height: 40px; background: var(--text); color: var(--surface); }
+.mbtn.big svg { width: 16px; height: 16px; }
+.mbtn.big:hover { background: var(--accent); color: var(--accent-ink); }
+
+/* Música en la píldora */
+.pill-art { flex: none; width: 24px; height: 24px; border-radius: 7px; overflow: hidden; display: grid; place-items: center; background: var(--surface-3); color: var(--muted); margin-left: -6px; }
+.pill-art img { width: 100%; height: 100%; object-fit: cover; }
+.pill-art svg { width: 13px; height: 13px; }
+.eq { flex: none; display: inline-flex; align-items: flex-end; gap: 2px; height: 14px; padding: 0 2px; cursor: pointer; }
+.eq i { width: 3px; height: 40%; border-radius: 2px; background: var(--muted); animation: eq 1s ease-in-out infinite; }
+.eq.main i { background: var(--ok); }
+.eq i:nth-child(2) { animation-delay: -0.35s; }
+.eq i:nth-child(3) { animation-delay: -0.7s; }
+@keyframes eq { 0%, 100% { height: 30%; } 50% { height: 100%; } }
+.pill-btn { font-size: 11px; font-weight: 750; }
+
+/* Ahora suena (panel) */
+.now-playing { display: flex; align-items: center; gap: 12px; padding: 10px; margin-bottom: 12px; border-radius: 14px; background: var(--surface-2); }
+.np-art { width: 48px; height: 48px; border-radius: 10px; }
+.np-main { flex: 1; min-width: 0; }
+.np-title { font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.np-artist { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.now-playing .mprog { margin-top: 4px; }
+.now-playing .mbtn { width: 28px; height: 28px; }
+
+/* Pestaña IA al final con su propio color */
+.tabs .tab-ai { margin-left: auto; color: var(--accent); }
+.tabs .tab-ai.active { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+.tabs button:last-child { margin-left: 4px; }
+
+/* Modos */
+.mode-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.mode-chip { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 15px; background: var(--surface-2); border: 1px solid var(--line); font-weight: 600; font-size: 12px; transition: border-color 0.15s, background 0.15s; }
+.mode-chip:hover { border-color: var(--accent); }
+.mode-chip.active { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+.mode-chip .x svg { width: 10px; height: 10px; }
+
+/* Hábitos */
+.habits { margin-top: 2px; }
+.habit-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.habit { display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px 5px 5px; border-radius: 18px; background: var(--surface-2); transition: background 0.15s, transform 0.1s; }
+.habit:hover { background: var(--surface-3); }
+.habit:active { transform: scale(0.96); }
+.habit-ring { --deg: 0deg; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: conic-gradient(var(--accent) var(--deg), var(--surface-3) 0); }
+.habit-ring span { width: 20px; height: 20px; border-radius: 50%; background: var(--surface); display: grid; place-items: center; font-size: 11px; }
+.habit.done .habit-ring { background: var(--ok); }
+.habit-txt { display: grid; text-align: left; line-height: 1.15; }
+.habit-txt b { font-size: 12px; font-weight: 600; }
+.habit-txt small { font-size: 10.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.habit-stats { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; grid-template-columns: minmax(0, 1fr); }
+.habit-stats li { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 9px; background: var(--surface-2); }
+.hs-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hs-dots { display: flex; gap: 4px; }
+.hs-dots i { width: 9px; height: 9px; border-radius: 3px; background: var(--surface-3); }
+.hs-dots i.on { background: var(--ok); }
+.hs-streak { flex: none; width: 40px; text-align: right; font-size: 11.5px; font-weight: 650; }
+
+/* Editores de Ajustes */
+.edit-list { display: grid; gap: 6px; margin: 8px 0; }
+.edit-row { display: flex; align-items: center; gap: 6px; }
+.edit-row .input { height: 32px; }
+.input.emoji { width: 42px; flex: none; text-align: center; padding: 0; font-size: 15px; }
+.input.num { width: 58px; flex: none; }
+.edit-row select.input { width: auto; flex: none; }
+.input.area { height: auto; padding: 8px 10px; resize: vertical; line-height: 1.4; }
+.edit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 6px 0; }
+.edit-grid label { display: grid; gap: 4px; font-size: 11.5px; color: var(--muted); }
+.mode-edit { padding: 10px; border-radius: 10px; background: var(--surface-3); margin: 8px 0; }
+.chips-wrap { display: flex; flex-wrap: wrap; gap: 4px; margin: -2px 0 4px; }
+.chip-mini.app { height: 24px; gap: 4px; padding: 0 4px 0 9px; font-size: 11.5px; color: var(--text); }
+.chip-mini.app button { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; color: var(--muted); }
+.chip-mini.app button:hover { background: var(--surface-2); color: var(--text); }
+.chip-mini.app svg { width: 9px; height: 9px; }
+.small { font-size: 11px; font-weight: 500; }
+.ai-actions { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.ai-btn { padding: 10px; }
+.ai-btn small { font-size: 11px; }
+.bars { margin-bottom: 6px; }
+#habitStats .section-title { margin-top: 16px; }
