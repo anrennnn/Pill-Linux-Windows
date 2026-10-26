@@ -1,0 +1,56 @@
+name: Publicar
+
+# Publica un borrador de Release (lo deja como «latest», que es donde la app busca
+# las actualizaciones) y, si se pide, borra los demás borradores.
+# Actions → Publicar → Run workflow.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Versión a publicar (p. ej. v0.3.0)"
+        required: true
+        default: "v0.3.0"
+      delete_other_drafts:
+        description: "Borrar los demás borradores"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publicar ${{ inputs.tag }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ inputs.tag }}
+          DELETE_DRAFTS: ${{ inputs.delete_other_drafts }}
+        run: |
+          set -euo pipefail
+          releases="$(gh api "repos/$REPO/releases?per_page=100")"
+          id="$(echo "$releases" | jq -r --arg t "$TAG" 'map(select(.tag_name == $t)) | first | .id // empty')"
+          if [ -z "$id" ]; then
+            echo "::error::No hay ninguna Release con la versión $TAG."
+            exit 1
+          fi
+          if ! echo "$releases" | jq -e --arg t "$TAG" 'map(select(.tag_name == $t)) | first | .assets | map(.name) | index("latest.json")' > /dev/null; then
+            echo "::error::La Release $TAG no tiene latest.json: las actualizaciones automáticas no la encontrarían."
+            exit 1
+          fi
+          gh api -X PATCH "repos/$REPO/releases/$id" -F draft=false -f make_latest=true > /dev/null
+          echo "Publicada $TAG."
+
+          if [ "$DELETE_DRAFTS" = "true" ]; then
+            echo "$releases" | jq -r --arg t "$TAG" '.[] | select(.draft and .tag_name != $t) | "\(.id) \(.tag_name)"' | while read -r other name; do
+              gh api -X DELETE "repos/$REPO/releases/$other"
+              echo "Borrador $name eliminado."
+            done
+          fi
+
+          code="$(curl -sL -o /dev/null -w '%{http_code}' "https://github.com/$REPO/releases/latest/download/latest.json")"
+          echo "latest.json responde HTTP $code"
+          [ "$code" = "200" ] || { echo "::warning::latest.json aún no responde 200 (puede tardar unos segundos)."; }
