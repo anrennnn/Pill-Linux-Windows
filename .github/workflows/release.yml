@@ -45,22 +45,42 @@ jobs:
 
       # Las actualizaciones automáticas necesitan la clave privada como secreto del repositorio.
       # Sin ella, se publican los instaladores igualmente, pero sin actualizaciones firmadas.
-      - name: Firmar actualizaciones si hay clave
+      # Comprobamos la clave antes de compilar: al pegarla en GitHub es fácil que se cuele
+      # un salto de línea o un espacio, y entonces la firma falla al final del build.
+      - name: Preparar la firma de actualizaciones
         shell: bash
         env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          RAW_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
-          if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ]; then
-            echo "UPDATER_ARGS=--config src-tauri/tauri.updater.conf.json" >> "$GITHUB_ENV"
-          else
+          if [ -z "$RAW_KEY" ]; then
             echo "::warning::Falta el secreto TAURI_SIGNING_PRIVATE_KEY: esta versión no tendrá actualizaciones automáticas."
+            exit 0
           fi
+          key="$(printf '%s' "$RAW_KEY" | tr -d '[:space:]')"
+          echo "::add-mask::$key"
+          echo "firma de prueba" > firma-prueba.txt
+          if out="$(npx tauri signer sign -k "$key" -p "$KEY_PASSWORD" firma-prueba.txt 2>&1)"; then
+            {
+              echo "SIGNING_KEY=$key"
+              echo "SIGNING_PASSWORD=$KEY_PASSWORD"
+              echo "UPDATER_ARGS=--config src-tauri/tauri.updater.conf.json"
+            } >> "$GITHUB_ENV"
+            echo "Clave de firma válida."
+          elif echo "$out" | grep -q "decode base64"; then
+            echo "::error::TAURI_SIGNING_PRIVATE_KEY no es una clave privada válida (¿texto incompleto o de otro archivo?). Se publica sin actualizaciones automáticas."
+          elif echo "$out" | grep -q "password"; then
+            echo "::error::La clave no se abre con TAURI_SIGNING_PRIVATE_KEY_PASSWORD (si la clave no tiene contraseña, borra ese secreto; o se pegó la clave pública). Se publica sin actualizaciones automáticas."
+          else
+            echo "::error::No se pudo firmar con la clave: $(echo "$out" | tail -1)"
+          fi
+          rm -f firma-prueba.txt firma-prueba.txt.sig
 
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ env.SIGNING_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ env.SIGNING_PASSWORD }}
         with:
           tagName: v__VERSION__
           releaseName: FocusPill v__VERSION__
