@@ -4,6 +4,12 @@ Píldora flotante de productividad para Linux. Vive arriba en el centro de la pa
 
 Inspirada en Orby (orby.win), pero centrada solo en productividad: menos herramientas y mejor hechas.
 
+![Píldora y captura rápida](docs/pildora.png)
+
+![Panel: Hoy, Foco y Notas](docs/panel.png)
+
+**Descarga:** el `.deb` está en [Releases](https://github.com/anrennnn/Pill-Linux-Windows/releases).
+
 ## Qué hace
 
 | Modo | Cómo se abre | Para qué |
