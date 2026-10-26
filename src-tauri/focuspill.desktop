@@ -1,0 +1,24 @@
+[Desktop Entry]
+Type=Application
+Name={{name}}
+GenericName=Píldora de productividad
+Comment={{comment}}
+Exec={{exec}}
+Icon={{icon}}
+Terminal=false
+Categories=Utility;Office;
+Keywords=pomodoro;foco;tareas;productividad;focus;tasks;notes;
+StartupWMClass=focuspill
+Actions=capture;focus;open;
+
+[Desktop Action capture]
+Name=Captura rápida
+Exec={{exec}} --capture
+
+[Desktop Action focus]
+Name=Iniciar / pausar foco
+Exec={{exec}} --toggle-focus
+
+[Desktop Action open]
+Name=Abrir panel
+Exec={{exec}} --open

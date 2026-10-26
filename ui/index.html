@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="es" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FocusPill</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="island" class="island mode-pill">
+    <!-- Píldora cerrada -->
+    <div class="pill" id="pill" title="Clic: abrir · Arrastrar: mover · Clic derecho: captura rápida">
+      <span class="dot" id="pillDot"></span>
+      <span class="pill-label" id="pillLabel">FocusPill</span>
+      <span class="pill-meta" id="pillMeta"></span>
+      <button class="pill-btn" id="pillPlay" aria-label="Iniciar o pausar foco"></button>
+      <div class="pill-progress"><i id="pillProgress"></i></div>
+    </div>
+
+    <!-- Captura rápida -->
+    <form class="capture" id="capture" autocomplete="off">
+      <span class="dot dot-accent"></span>
+      <input id="captureInput" placeholder="Captura algo…  (!  = hoy · n:  = nota)" spellcheck="false" />
+      <span class="chip" id="captureDest">Bandeja</span>
+    </form>
+
+    <!-- Panel expandido -->
+    <div class="panel" id="panel">
+      <header class="panel-head">
+        <div class="status" id="headStatus">
+          <span class="dot" id="headDot"></span>
+          <span class="status-label" id="headLabel"></span>
+          <span class="status-time" id="headTime"></span>
+        </div>
+        <button class="icon-btn" id="collapseBtn" aria-label="Plegar" title="Plegar (Esc)"></button>
+      </header>
+
+      <nav class="tabs" id="tabs">
+        <button data-tab="today">Hoy</button>
+        <button data-tab="focus">Foco</button>
+        <button data-tab="notes">Notas</button>
+        <button data-tab="stats">Progreso</button>
+        <button data-tab="settings" aria-label="Ajustes" title="Ajustes"></button>
+      </nav>
+
+      <div class="views">
+        <!-- HOY -->
+        <section class="view" data-view="today">
+          <form id="todayForm" class="add-row" autocomplete="off">
+            <input id="todayInput" placeholder="Añade una prioridad para hoy…" spellcheck="false" />
+            <button class="add-btn" aria-label="Añadir"></button>
+          </form>
+
+          <div class="goal" id="goal"></div>
+
+          <div class="section-title"><span>Prioridades</span><span id="todayCount" class="muted"></span></div>
+          <ul class="list" id="todayList"></ul>
+
+          <details class="fold" id="doneFold">
+            <summary><span>Hechas hoy</span><span id="doneCount" class="muted"></span></summary>
+            <ul class="list compact" id="doneList"></ul>
+          </details>
+
+          <div class="section-title"><span>Bandeja</span><span id="inboxCount" class="muted"></span></div>
+          <ul class="list" id="inboxList"></ul>
+        </section>
+
+        <!-- FOCO -->
+        <section class="view" data-view="focus">
+          <div class="ring-wrap">
+            <svg class="ring" viewBox="0 0 200 200" aria-hidden="true">
+              <circle class="ring-track" cx="100" cy="100" r="86" />
+              <circle class="ring-fill" id="ringFill" cx="100" cy="100" r="86" />
+            </svg>
+            <div class="ring-center">
+              <div class="ring-phase" id="ringPhase">Listo</div>
+              <div class="ring-time" id="ringTime">25:00</div>
+              <div class="ring-cycle" id="ringCycle"></div>
+            </div>
+          </div>
+
+          <label class="field">
+            <span>Trabajando en</span>
+            <select id="focusTask"></select>
+          </label>
+
+          <div class="controls">
+            <button class="btn ghost" id="resetBtn">Reiniciar</button>
+            <button class="btn primary" id="startBtn">Empezar</button>
+            <button class="btn ghost" id="skipBtn">Saltar</button>
+          </div>
+
+          <div class="presets" id="presets">
+            <button data-preset="25,5">25 / 5</button>
+            <button data-preset="50,10">50 / 10</button>
+            <button data-preset="90,15">90 / 15</button>
+            <button data-preset="15,3">15 / 3</button>
+          </div>
+        </section>
+
+        <!-- NOTAS -->
+        <section class="view" data-view="notes">
+          <form id="noteForm" class="note-form" autocomplete="off">
+            <textarea id="noteInput" rows="3" placeholder="Escribe una idea, un apunte, un enlace…  (Ctrl+Enter para guardar)"></textarea>
+            <button class="btn primary small">Guardar nota</button>
+          </form>
+          <ul class="notes" id="noteList"></ul>
+        </section>
+
+        <!-- PROGRESO -->
+        <section class="view" data-view="stats">
+          <div class="kpis" id="kpis"></div>
+          <div class="section-title"><span>Minutos de foco · 7 días</span></div>
+          <div class="bars" id="bars"></div>
+          <div class="section-title"><span>Dónde se fue tu foco esta semana</span></div>
+          <ul class="list compact" id="topTasks"></ul>
+        </section>
+
+        <!-- AJUSTES -->
+        <section class="view" data-view="settings">
+          <div class="set-group">
+            <div class="set-title">Apariencia</div>
+            <div class="seg" id="themeSeg">
+              <button data-theme="dark">Oscuro</button>
+              <button data-theme="light">Claro</button>
+              <button data-theme="system">Sistema</button>
+            </div>
+            <div class="swatches" id="swatches"></div>
+          </div>
+
+          <div class="set-group">
+            <div class="set-title">Pomodoro</div>
+            <div class="num-grid">
+              <label>Foco (min)<input type="number" min="1" max="180" data-num="focusMin" /></label>
+              <label>Descanso<input type="number" min="1" max="60" data-num="breakMin" /></label>
+              <label>Descanso largo<input type="number" min="1" max="90" data-num="longBreakMin" /></label>
+              <label>Largo cada<input type="number" min="2" max="12" data-num="longEvery" /></label>
+              <label>Meta diaria (min)<input type="number" min="10" max="720" data-num="dailyGoalMin" /></label>
+            </div>
+          </div>
+
+          <div class="set-group">
+            <div class="set-title">Comportamiento</div>
+            <label class="toggle"><input type="checkbox" data-bool="autoBreak" /><span>Empezar descansos automáticamente</span></label>
+            <label class="toggle"><input type="checkbox" data-bool="autoFocus" /><span>Empezar foco tras el descanso</span></label>
+            <label class="toggle"><input type="checkbox" data-bool="sound" /><span>Sonido al terminar</span></label>
+            <label class="toggle"><input type="checkbox" data-bool="collapseOnBlur" /><span>Plegar al hacer clic fuera</span></label>
+            <label class="toggle"><input type="checkbox" id="autostart" /><span>Abrir al iniciar sesión</span></label>
+          </div>
+
+          <div class="set-group">
+            <div class="set-title">Atajos</div>
+            <dl class="keys">
+              <dt><kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>Espacio</kbd></dt><dd>Captura rápida</dd>
+              <dt><kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>F</kbd></dt><dd>Iniciar / pausar foco</dd>
+              <dt><kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>P</kbd></dt><dd>Abrir / plegar panel</dd>
+            </dl>
+            <p class="hint">¿En Wayland no responden? Crea un atajo en la configuración de tu escritorio con el comando <code>focuspill --capture</code> (o <code>--toggle-focus</code>, <code>--open</code>).</p>
+          </div>
+
+          <div class="set-actions">
+            <button class="btn ghost small" id="resetPosBtn">Volver arriba al centro</button>
+            <button class="btn ghost small" id="hideBtn">Ocultar píldora</button>
+            <button class="btn danger small" id="quitBtn">Salir</button>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "name": "focuspill",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Píldora flotante de productividad para escritorios Linux",
+  "scripts": {
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "build": "tauri build --bundles deb"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.8.0"
+  }
+}

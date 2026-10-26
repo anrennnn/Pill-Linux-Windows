@@ -1,0 +1,55 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "FocusPill",
+  "version": "0.1.0",
+  "identifier": "com.focuspill.app",
+  "build": {
+    "frontendDist": "../ui"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "label": "main",
+        "title": "FocusPill",
+        "width": 320,
+        "height": 60,
+        "decorations": false,
+        "transparent": true,
+        "resizable": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visibleOnAllWorkspaces": true,
+        "shadow": false,
+        "visible": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "deb"
+    ],
+    "category": "Productivity",
+    "shortDescription": "Píldora flotante de productividad",
+    "longDescription": "FocusPill es una píldora flotante siempre visible en todos tus escritorios: prioridades del día, Pomodoro ligado a tareas, captura rápida con atajo global, notas y estadísticas de foco.",
+    "publisher": "Anthony",
+    "copyright": "© 2026 Anthony",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.png"
+    ],
+    "linux": {
+      "deb": {
+        "section": "utils",
+        "priority": "optional",
+        "desktopTemplate": "focuspill.desktop"
+      }
+    }
+  }
+}
