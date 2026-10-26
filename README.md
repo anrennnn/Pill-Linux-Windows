@@ -8,7 +8,7 @@ Inspirada en Orby (orby.win), pero centrada solo en productividad: menos herrami
 
 ![Panel: Hoy, Foco y Notas](docs/panel.png)
 
-**Descarga:** el `.deb` está en [Releases](https://github.com/anrennnn/Pill-Linux-Windows/releases).
+**Descarga:** [`releases/FocusPill_0.1.0_amd64.deb`](releases/FocusPill_0.1.0_amd64.deb) (Linux, 2,1 MB).
 
 ## Qué hace
 
@@ -36,7 +36,7 @@ Los datos se guardan en local, en `~/.local/share/com.focuspill.app/`.
 ## Instalar
 
 ```bash
-sudo apt install ./FocusPill_0.1.0_amd64.deb
+sudo apt install ./releases/FocusPill_0.1.0_amd64.deb
 ```
 
 Funciona en Ubuntu 22.04 o posterior, Debian 12 o posterior, Linux Mint 21 o posterior, Pop!_OS y elementary, en cualquier distro con `libwebkit2gtk-4.1-0`. Apt instala las dependencias solo.
