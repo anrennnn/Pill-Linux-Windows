@@ -399,10 +399,36 @@ fn revalidate_license(app: AppHandle) {
 
 /* ---------------- Actualizaciones ---------------- */
 
+/// Traduce los errores del actualizador a algo que el usuario pueda entender.
+fn update_error(e: impl std::fmt::Display) -> String {
+    let e = e.to_string();
+    if e.contains("valid release JSON") || e.contains("404") {
+        "Aún no hay ninguna versión publicada en GitHub. Vuelve a intentarlo más tarde.".into()
+    } else if e.contains("signature") {
+        "La actualización no tiene una firma válida y no se ha instalado.".into()
+    } else if e.contains("dns") || e.contains("connect") || e.contains("network") {
+        "Sin conexión con GitHub. Revisa tu conexión a internet.".into()
+    } else {
+        format!("No se pudo comprobar: {e}")
+    }
+}
+
+#[cfg(test)]
+mod update_tests {
+    use super::update_error;
+
+    #[test]
+    fn explains_update_errors() {
+        assert!(update_error("Could not fetch a valid release JSON from the remote").starts_with("Aún no hay"));
+        assert!(update_error("invalid signature").contains("firma"));
+        assert!(update_error("raro").starts_with("No se pudo"));
+    }
+}
+
 #[tauri::command]
 async fn check_update(app: AppHandle) -> Result<Option<Value>, String> {
-    let updater = app.updater().map_err(|e| e.to_string())?;
-    match updater.check().await.map_err(|e| e.to_string())? {
+    let updater = app.updater().map_err(update_error)?;
+    match updater.check().await.map_err(update_error)? {
         Some(u) => Ok(Some(serde_json::json!({ "version": u.version, "notes": u.body }))),
         None => Ok(None),
     }
@@ -410,9 +436,9 @@ async fn check_update(app: AppHandle) -> Result<Option<Value>, String> {
 
 #[tauri::command]
 async fn install_update(app: AppHandle) -> Result<(), String> {
-    let updater = app.updater().map_err(|e| e.to_string())?;
-    let Some(update) = updater.check().await.map_err(|e| e.to_string())? else { return Ok(()) };
-    update.download_and_install(|_, _| {}, || {}).await.map_err(|e| e.to_string())?;
+    let updater = app.updater().map_err(update_error)?;
+    let Some(update) = updater.check().await.map_err(update_error)? else { return Ok(()) };
+    update.download_and_install(|_, _| {}, || {}).await.map_err(update_error)?;
     app.restart();
 }
 
