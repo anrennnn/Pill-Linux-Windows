@@ -59,7 +59,12 @@ Descarga la última versión desde **[Releases](https://github.com/anrennnn/pill
 | Cualquier distro | `.AppImage` → `chmod +x FocusPill_*.AppImage && ./FocusPill_*.AppImage` |
 | Windows 10/11 | `.msi` o `-setup.exe` |
 
-En `releases/` del repositorio también están el `.deb` y el `.rpm` de la v0.2.0 para descargarlos ya.
+**Descarga directa de la v0.2.0** (mismos archivos que la Release):
+
+- Linux: [FocusPill_0.2.0_amd64.deb](https://github.com/anrennnn/pill-linux-windows/raw/main/releases/FocusPill_0.2.0_amd64.deb) · [FocusPill-0.2.0-1.x86_64.rpm](https://github.com/anrennnn/pill-linux-windows/raw/main/releases/FocusPill-0.2.0-1.x86_64.rpm)
+- Windows: [FocusPill_0.2.0_x64-setup.exe](https://github.com/anrennnn/pill-linux-windows/raw/main/releases/FocusPill_0.2.0_x64-setup.exe) · [FocusPill_0.2.0_x64_es-ES.msi](https://github.com/anrennnn/pill-linux-windows/raw/main/releases/FocusPill_0.2.0_x64_es-ES.msi)
+
+Los instaladores de Windows no están firmados con certificado: si aparece «Windows protegió su PC», pulsa «Más información» → «Ejecutar de todos modos». El AppImage, por su tamaño, solo está en Releases.
 
 ## IA: de tu distro o local
 
