@@ -24,7 +24,9 @@ fn check(resp: http::Response, what: &str) -> Result<String, String> {
 /// Descarga un calendario .ics (URL http/https, webcal:// o archivo local).
 pub fn fetch_calendar(url: &str) -> Result<String, String> {
     let url = url.trim();
-    if let Some(path) = url.strip_prefix("file://").or_else(|| url.starts_with('/').then_some(url)) {
+    // Archivo local: file://… o una ruta absoluta (/home/… en Linux, C:\… en Windows).
+    let local = url.strip_prefix("file://").or_else(|| std::path::Path::new(url).is_absolute().then_some(url));
+    if let Some(path) = local {
         return std::fs::read_to_string(path).map_err(|e| format!("No se pudo leer {path}: {e}"));
     }
     let url = match url.strip_prefix("webcal://") {
